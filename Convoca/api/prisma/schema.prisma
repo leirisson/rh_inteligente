@@ -7,5 +7,239 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// No models yet — business schema is Spec 04.
-// The initial migration only activates the pgvector extension.
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  TENANT_ADMIN
+  RECRUITER
+  DEPARTMENT_LEAD
+}
+
+enum JobStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  CLOSED
+}
+
+enum ApplicationStatus {
+  PENDING_CONTACT
+  IN_SCREENING
+  APPROVED
+  REJECTED
+  INTERVIEW_SCHEDULED
+  HIRED
+  WITHDRAWN
+}
+
+enum MessageSender {
+  AGENT
+  CANDIDATE
+}
+
+enum Channel {
+  WHATSAPP
+  EMAIL
+}
+
+// ─── Tenant ──────────────────────────────────────────────────────────────────
+
+model Tenant {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users            User[]
+  jobs             Job[]
+  jobRequirements  JobRequirement[]
+  screeningQuestions ScreeningQuestion[]
+
+  @@map("tenants")
+}
+
+// ─── User (Admin / Recruiter / Lead) ─────────────────────────────────────────
+
+model User {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         UserRole
+  name         String
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("users")
+}
+
+// ─── Candidate (global — sem tenant) ─────────────────────────────────────────
+
+model Candidate {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String
+  email      String?  @unique
+  resumeText String?  @map("resume_text")
+  // embedding vector(1536) added via manual SQL migration (6_embeddings)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  contactMethods ContactMethod[]
+  applications   Application[]
+
+  @@map("candidates")
+}
+
+// ─── ContactMethod ────────────────────────────────────────────────────────────
+
+model ContactMethod {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidateId String   @map("candidate_id") @db.Uuid
+  channel     Channel
+  value       String   @unique
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  candidate Candidate @relation(fields: [candidateId], references: [id])
+
+  @@map("contact_methods")
+}
+
+// ─── Job ──────────────────────────────────────────────────────────────────────
+
+model Job {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  title       String
+  description String
+  status      JobStatus @default(DRAFT)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  tenant             Tenant              @relation(fields: [tenantId], references: [id])
+  requirements       JobRequirement[]
+  screeningQuestions ScreeningQuestion[]
+  applications       Application[]
+
+  @@map("jobs")
+}
+
+// ─── JobRequirement ───────────────────────────────────────────────────────────
+
+model JobRequirement {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobId    String @map("job_id") @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  text     String
+  // embedding vector(1536) added via manual SQL migration (6_embeddings)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  job    Job    @relation(fields: [jobId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("job_requirements")
+}
+
+// ─── ScreeningQuestion ────────────────────────────────────────────────────────
+
+model ScreeningQuestion {
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobId          String  @map("job_id") @db.Uuid
+  tenantId       String  @map("tenant_id") @db.Uuid
+  question       String
+  expectedAnswer String? @map("expected_answer")
+  order          Int
+  weight         Float   @default(1.0)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  job     Job    @relation(fields: [jobId], references: [id])
+  tenant  Tenant @relation(fields: [tenantId], references: [id])
+  answers ScreeningAnswer[]
+
+  @@map("screening_questions")
+}
+
+// ─── Application ─────────────────────────────────────────────────────────────
+
+model Application {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidateId String            @map("candidate_id") @db.Uuid
+  jobId       String            @map("job_id") @db.Uuid
+  status      ApplicationStatus @default(PENDING_CONTACT)
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  candidate         Candidate          @relation(fields: [candidateId], references: [id])
+  job               Job                @relation(fields: [jobId], references: [id])
+  answers           ScreeningAnswer[]
+  stages            ApplicationStage[]
+  conversations     Conversation[]
+  interviewSchedule InterviewSchedule?
+
+  @@unique([candidateId, jobId])
+  @@map("applications")
+}
+
+// ─── ScreeningAnswer ──────────────────────────────────────────────────────────
+
+model ScreeningAnswer {
+  id            String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  applicationId String  @map("application_id") @db.Uuid
+  questionId    String  @map("question_id") @db.Uuid
+  answer        String
+  score         Float?
+  verdict       String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  application Application       @relation(fields: [applicationId], references: [id])
+  question    ScreeningQuestion  @relation(fields: [questionId], references: [id])
+
+  @@map("screening_answers")
+}
+
+// ─── ApplicationStage (append-only) ──────────────────────────────────────────
+
+model ApplicationStage {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  applicationId String            @map("application_id") @db.Uuid
+  status        ApplicationStatus
+  note          String?
+  createdAt     DateTime          @default(now()) @map("created_at")
+
+  application Application @relation(fields: [applicationId], references: [id])
+
+  @@map("application_stages")
+}
+
+// ─── Conversation ─────────────────────────────────────────────────────────────
+
+model Conversation {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  applicationId String        @map("application_id") @db.Uuid
+  sender        MessageSender
+  channel       Channel
+  content       String
+  sentAt        DateTime      @map("sent_at")
+
+  application Application @relation(fields: [applicationId], references: [id])
+
+  @@map("conversations")
+}
+
+// ─── InterviewSchedule ────────────────────────────────────────────────────────
+
+model InterviewSchedule {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  applicationId String   @unique @map("application_id") @db.Uuid
+  scheduledAt   DateTime @map("scheduled_at")
+  location      String?
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  application Application @relation(fields: [applicationId], references: [id])
+
+  @@map("interview_schedules")
+}

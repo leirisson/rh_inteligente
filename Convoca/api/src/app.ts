@@ -4,6 +4,9 @@ import { config } from "./config/index";
 import { corsPlugin } from "./plugins/cors";
 import { errorHandlerPlugin } from "./plugins/error-handler";
 import { healthRoutes } from "./routes/health";
+import { jwtPlugin } from "./plugins/jwt";
+import { tenantScopePlugin } from "./plugins/tenant-scope";
+import { authRoutes } from "./modules/auth/auth.routes";
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -22,8 +25,11 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   await app.register(corsPlugin);
   await app.register(errorHandlerPlugin);
+  await app.register(jwtPlugin);
+  await app.register(tenantScopePlugin);
 
   await app.register(healthRoutes, { prefix: "/health" });
+  await app.register(authRoutes, { prefix: "/auth" });
 
   return app;
 }

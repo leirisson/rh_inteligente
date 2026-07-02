@@ -26,6 +26,6 @@ Cada sprint é derivada diretamente das specs (`api/specs/`). A divisão respeit
 | Sprint 1 | Infraestrutura + Configuração base | ✅ Concluída |
 | Sprint 2 | Autenticação + Modelagem do banco | ✅ Concluída |
 | Sprint 3 | CRUD empresas/vagas + candidatos | ✅ Concluída |
-| Sprint 4 | Matching engine + Agente LangGraph | 🔒 Aguarda Sprint 3 |
+| Sprint 4 | Matching engine + Agente LangGraph | ✅ Concluída |
 | Sprint 5 | WhatsApp + Fases + Agendamento | 🔒 Aguarda Sprint 4 |
 | Sprint 6 | Testes automatizados + Deploy | 🔒 Aguarda Sprint 5 |

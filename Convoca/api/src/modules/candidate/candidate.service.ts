@@ -2,11 +2,16 @@ import { Prisma } from "@prisma/client";
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../../lib/prisma.js";
 import { hashPassword, verifyPassword, buildTokens } from "../auth/auth.service.js";
+import { generateEmbedding } from "../../lib/embeddings.js";
+import { setCandidateEmbedding } from "../../lib/vector.js";
 import type { JWTPayload } from "../../lib/rbac.js";
 import type { CandidateAuthResponse } from "./candidate.types.js";
 
 function notFoundError() {
-  return Object.assign(new Error("Candidate not found"), { statusCode: 404, code: "CANDIDATE_NOT_FOUND" });
+  return Object.assign(new Error("Candidate not found"), {
+    statusCode: 404,
+    code: "CANDIDATE_NOT_FOUND",
+  });
 }
 
 function invalidCredentialsError() {
@@ -37,9 +42,17 @@ export async function signupCandidate(
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      throw Object.assign(new Error("Email already in use"), { statusCode: 409, code: "EMAIL_TAKEN" });
+      throw Object.assign(new Error("Email already in use"), {
+        statusCode: 409,
+        code: "EMAIL_TAKEN",
+      });
     }
     throw error;
+  }
+
+  if (resumeText) {
+    const embedding = await generateEmbedding(resumeText);
+    await setCandidateEmbedding(candidate.id, embedding);
   }
 
   const { accessToken, refreshToken } = buildCandidateTokens(app, candidate.id);
@@ -74,7 +87,14 @@ export async function updateCandidate(
   data: { name?: string; resumeText?: string },
 ) {
   await getCandidate(candidateId);
-  return prisma.candidate.update({ where: { id: candidateId }, data });
+  const candidate = await prisma.candidate.update({ where: { id: candidateId }, data });
+
+  if (data.resumeText) {
+    const embedding = await generateEmbedding(data.resumeText);
+    await setCandidateEmbedding(candidateId, embedding);
+  }
+
+  return candidate;
 }
 
 export async function createContactMethod(

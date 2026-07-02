@@ -1,8 +1,12 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import { buildTestApp, makeAuthHeader } from "../../test/helpers.js";
 import { prisma } from "../../lib/prisma.js";
 import { createTenantWithAdmin } from "../auth/auth.service.js";
 import type { FastifyInstance } from "fastify";
+
+vi.mock("../../lib/embeddings.js", () => ({
+  generateEmbedding: vi.fn().mockResolvedValue(new Array(1536).fill(0)),
+}));
 
 let app: FastifyInstance;
 
@@ -48,7 +52,11 @@ describe("POST /candidates/signup", () => {
     });
 
     expect(res.statusCode).toBe(201);
-    const body = res.json<{ accessToken: string; refreshToken: string; candidate: { id: string; name: string } }>();
+    const body = res.json<{
+      accessToken: string;
+      refreshToken: string;
+      candidate: { id: string; name: string };
+    }>();
     expect(body.accessToken).toBeTruthy();
     expect(body.refreshToken).toBeTruthy();
     expect(body.candidate.name).toBe("Jane Doe");

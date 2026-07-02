@@ -1,0 +1,44 @@
+{
+  "id": "answer-evaluation",
+  "description": "Evaluates a candidate's screening answer against an optional expected answer.",
+  "model_defaults": {
+    "temperature": 0
+  },
+  "variants": {
+    "with_expected_answer": {
+      "role": "You are screening a job candidate.",
+      "task": "Given the question, the expected answer, and the candidate's actual answer, evaluate how well the candidate's answer matches the expected answer.",
+      "input_variables": ["question", "expectedAnswer", "candidateAnswer"],
+      "template": "Question: {{question}}\nExpected answer: {{expectedAnswer}}\nCandidate's answer: {{candidateAnswer}}"
+    },
+    "open_ended": {
+      "role": "You are screening a job candidate.",
+      "task": "This is an open-ended question with no fixed expected answer — judge the quality and relevance of the candidate's answer on its own merits.",
+      "input_variables": ["question", "candidateAnswer"],
+      "template": "Question: {{question}}\nCandidate's answer: {{candidateAnswer}}"
+    }
+  },
+  "output_schema": {
+    "name": "answer_evaluation",
+    "strict": true,
+    "schema": {
+      "type": "object",
+      "properties": {
+        "score": {
+          "type": "number",
+          "description": "Score between 0 and 1 indicating how well the candidate's answer meets the bar."
+        },
+        "verdict": {
+          "type": "string",
+          "enum": ["PASS", "FAIL"]
+        },
+        "reasoning": {
+          "type": "string",
+          "description": "One sentence explaining the verdict."
+        }
+      },
+      "required": ["score", "verdict", "reasoning"],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,8 +1,12 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import { buildTestApp, makeAuthHeader } from "../../test/helpers.js";
 import { prisma } from "../../lib/prisma.js";
 import { createTenantWithAdmin } from "../auth/auth.service.js";
 import type { FastifyInstance } from "fastify";
+
+vi.mock("../../lib/embeddings.js", () => ({
+  generateEmbedding: vi.fn().mockResolvedValue(new Array(1536).fill(0)),
+}));
 
 let app: FastifyInstance;
 
@@ -29,7 +33,12 @@ beforeEach(async () => {
 });
 
 async function loginNewTenant(suffix: string) {
-  await createTenantWithAdmin(`Tenant ${suffix}`, `admin${suffix}@test.com`, `Admin ${suffix}`, "AdminPass@123");
+  await createTenantWithAdmin(
+    `Tenant ${suffix}`,
+    `admin${suffix}@test.com`,
+    `Admin ${suffix}`,
+    "AdminPass@123",
+  );
   const res = await app.inject({
     method: "POST",
     url: "/auth/login",

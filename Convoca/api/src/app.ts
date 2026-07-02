@@ -12,6 +12,8 @@ import { jobRoutes } from "./modules/job/job.routes";
 import { jobRequirementRoutes } from "./modules/job-requirement/job-requirement.routes";
 import { screeningQuestionRoutes } from "./modules/screening-question/screening-question.routes";
 import { candidateRoutes } from "./modules/candidate/candidate.routes";
+import { matchingRoutes } from "./modules/matching/matching.routes";
+import { applicationRoutes } from "./modules/application/application.routes";
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -39,7 +41,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(jobRoutes, { prefix: "/jobs" });
   await app.register(jobRequirementRoutes, { prefix: "/jobs" });
   await app.register(screeningQuestionRoutes, { prefix: "/jobs" });
+  await app.register(matchingRoutes, { prefix: "/jobs" });
   await app.register(candidateRoutes, { prefix: "/candidates" });
+  await app.register(applicationRoutes, { prefix: "/applications" });
 
   return app;
 }

@@ -18,6 +18,8 @@ const envSchema = z.object({
   OPENROUTER_BASE_URL: z.string().url().default("https://openrouter.ai/api/v1"),
   OPENROUTER_DEFAULT_MODEL: z.string().default("anthropic/claude-3.5-sonnet"),
 
+  OPENAI_API_KEY: z.string().min(1),
+
   CORS_ORIGIN: z.string().default("*"),
 });
 

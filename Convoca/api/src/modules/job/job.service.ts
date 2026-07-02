@@ -1,5 +1,6 @@
 import { JobStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
+import { runScreeningAgent } from "../../agent/graph.js";
 
 function notFoundError() {
   return Object.assign(new Error("Job not found"), { statusCode: 404, code: "JOB_NOT_FOUND" });
@@ -42,8 +43,10 @@ export async function updateJob(
 
 export async function updateJobStatus(tenantId: string, jobId: string, status: JobStatus) {
   const job = await getJob(tenantId, jobId);
+  const isFirstActivation = job.status === JobStatus.DRAFT && status === JobStatus.ACTIVE;
+  const isBecomingActive = job.status !== JobStatus.ACTIVE && status === JobStatus.ACTIVE;
 
-  if (job.status === JobStatus.DRAFT && status === JobStatus.ACTIVE) {
+  if (isFirstActivation) {
     const questionCount = await prisma.screeningQuestion.count({ where: { jobId } });
     if (questionCount === 0) {
       throw Object.assign(new Error("Job cannot be activated without screening questions"), {
@@ -53,7 +56,13 @@ export async function updateJobStatus(tenantId: string, jobId: string, status: J
     }
   }
 
-  return prisma.job.update({ where: { id: jobId }, data: { status } });
+  const updated = await prisma.job.update({ where: { id: jobId }, data: { status } });
+
+  if (isBecomingActive) {
+    await runScreeningAgent(tenantId, jobId);
+  }
+
+  return updated;
 }
 
 export async function deleteJob(tenantId: string, jobId: string) {

@@ -1,3 +1,4 @@
+import OpenAI from "openai";
 import { config } from "../config/index";
 
 export interface LLMConfig {
@@ -17,11 +18,8 @@ export const llmConfig: LLMConfig = {
   },
 };
 
-// When Spec 08 (LangGraph agent) is implemented, instantiate the client like this:
-//
-// import OpenAI from "openai";
-// export const llmClient = new OpenAI({
-//   baseURL: llmConfig.baseURL,
-//   apiKey: llmConfig.apiKey,
-//   defaultHeaders: llmConfig.defaultHeaders,
-// });
+export const llmClient = new OpenAI({
+  baseURL: llmConfig.baseURL,
+  apiKey: llmConfig.apiKey,
+  defaultHeaders: llmConfig.defaultHeaders,
+});

@@ -79,10 +79,11 @@ model User {
 // ─── Candidate (global — sem tenant) ─────────────────────────────────────────
 
 model Candidate {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name       String
-  email      String?  @unique
-  resumeText String?  @map("resume_text")
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String
+  email        String?  @unique
+  passwordHash String   @map("password_hash")
+  resumeText   String?  @map("resume_text")
   // embedding vector(1536) added via manual SQL migration (6_embeddings)
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")

@@ -13,7 +13,7 @@ export async function verifyPassword(plain: string, hash: string): Promise<boole
   return argon2.verify(hash, plain);
 }
 
-function buildTokens(app: FastifyInstance, payload: JWTPayload) {
+export function buildTokens(app: FastifyInstance, payload: JWTPayload) {
   const accessToken = app.jwt.sign(payload, { expiresIn: "15m" });
   const refreshToken = app.jwt.sign(payload, { expiresIn: "7d" });
   return { accessToken, refreshToken };
@@ -36,6 +36,7 @@ export async function loginUser(
   }
 
   const payload: JWTPayload = {
+    type: "company",
     user_id: user.id,
     tenant_id: user.tenantId,
     role: user.role,
@@ -67,11 +68,10 @@ export async function refreshTokens(
     throw Object.assign(new Error("Invalid refresh token"), { statusCode: 401, code: "INVALID_TOKEN" });
   }
 
-  const newPayload: JWTPayload = {
-    user_id: payload.user_id,
-    tenant_id: payload.tenant_id,
-    role: payload.role,
-  };
+  const newPayload: JWTPayload =
+    payload.type === "candidate"
+      ? { type: "candidate", candidate_id: payload.candidate_id }
+      : { type: "company", user_id: payload.user_id, tenant_id: payload.tenant_id, role: payload.role };
 
   return buildTokens(app, newPayload);
 }

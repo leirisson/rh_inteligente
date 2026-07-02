@@ -7,6 +7,11 @@ import { healthRoutes } from "./routes/health";
 import { jwtPlugin } from "./plugins/jwt";
 import { tenantScopePlugin } from "./plugins/tenant-scope";
 import { authRoutes } from "./modules/auth/auth.routes";
+import { tenantRoutes } from "./modules/tenant/tenant.routes";
+import { jobRoutes } from "./modules/job/job.routes";
+import { jobRequirementRoutes } from "./modules/job-requirement/job-requirement.routes";
+import { screeningQuestionRoutes } from "./modules/screening-question/screening-question.routes";
+import { candidateRoutes } from "./modules/candidate/candidate.routes";
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -30,6 +35,11 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   await app.register(healthRoutes, { prefix: "/health" });
   await app.register(authRoutes, { prefix: "/auth" });
+  await app.register(tenantRoutes, { prefix: "/tenants" });
+  await app.register(jobRoutes, { prefix: "/jobs" });
+  await app.register(jobRequirementRoutes, { prefix: "/jobs" });
+  await app.register(screeningQuestionRoutes, { prefix: "/jobs" });
+  await app.register(candidateRoutes, { prefix: "/candidates" });
 
   return app;
 }

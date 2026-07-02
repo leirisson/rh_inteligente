@@ -76,9 +76,18 @@ Convoca/api/
 │   │   └── llm.ts               ← config OpenRouter (zero chamadas HTTP)
 │   ├── plugins/
 │   │   ├── cors.ts
-│   │   └── error-handler.ts    ← { error: { message, code } } em todas as respostas
+│   │   ├── jwt.ts                ← fp(), decora app.authenticate
+│   │   ├── tenant-scope.ts       ← fp(), preHandler injeta request.tenantId
+│   │   └── error-handler.ts      ← fp(), { error: { message, code } } em todas as respostas
 │   ├── routes/
 │   │   └── health.ts            ← GET /health
+│   ├── modules/
+│   │   ├── auth/                 ← login, refresh
+│   │   ├── tenant/                ← onboarding (POST /tenants)
+│   │   ├── job/                   ← CRUD de vagas (tenant-scoped)
+│   │   ├── job-requirement/       ← requisitos aninhados em /jobs/:jobId/requirements
+│   │   ├── screening-question/    ← perguntas aninhadas em /jobs/:jobId/screening-questions
+│   │   └── candidate/             ← signup/login próprio, /candidates/me/*, sem tenant_id
 │   ├── app.ts                   ← buildApp() sem listen()
 │   └── server.ts                ← entry point, void main()
 ├── .env / .env.example
@@ -126,6 +135,9 @@ npm start                        # node dist/server.js
 | 4 | Route module | Agrupamento de rotas | `src/routes/health.ts` — registra em `buildApp()` |
 | 5 | buildApp() isolado | Testabilidade | `app.ts` retorna instância sem `listen()` |
 | 6 | Error envelope | Respostas de erro | `{ error: { message, code } }` — nunca stack em produção |
+| 7 | `fp()` em plugins transversais | Decorators/hooks/handlers que outras rotas precisam enxergar | `jwtPlugin`, `tenantScopePlugin`, `errorHandlerPlugin` — ver [[5.7]] |
+| 8 | Módulo de domínio (service/routes/schema) | CRUD tenant-scoped | `src/modules/job/`, `src/modules/job-requirement/`, `src/modules/screening-question/`, `src/modules/tenant/` |
+| 9 | JWTPayload discriminado por `type` | Distinguir usuário de empresa de candidato no mesmo token JWT | `CompanyJWTPayload` (`type: "company"`) vs `CandidateJWTPayload` (`type: "candidate"`) em `src/lib/rbac.ts` — ver [[5.10]] |
 
 ---
 
@@ -161,6 +173,26 @@ npm start                        # node dist/server.js
 - **Problema:** `@fastify/jwt@10` declara `FastifyRequest.user` como `string | object | Buffer`. Tentar sobreescrever via `declare module "fastify" { interface FastifyRequest { user: JWTPayload } }` causa `TS2717: Subsequent property declarations must have the same type`.
 - **Solução:** Estender via `declare module "@fastify/jwt" { interface FastifyJWT { payload: JWTPayload; user: JWTPayload } }` no arquivo `src/plugins/jwt.ts`. Não declarar `user` em `module "fastify"` — apenas `authenticate` em `FastifyInstance`.
 
+### 5.7 Decorators/hooks de plugin não visíveis em rotas irmãs (encapsulamento Fastify)
+
+- **Problema:** `jwtPlugin` (decora `app.authenticate`), `tenantScopePlugin` (decora `request.tenantId`) e `errorHandlerPlugin` (`setErrorHandler`/`setNotFoundHandler`) eram registrados como `async function` simples via `app.register(...)`. O Fastify cria um novo contexto de encapsulamento por plugin registrado — decorators e handlers ficavam presos nesse contexto e não propagavam para os módulos de rota (`jobRoutes`, `tenantRoutes` etc.) registrados como irmãos em `app.ts`. Sintomas: `FST_ERR_HOOK_INVALID_HANDLER` ao usar `app.authenticate` em `onRequest`, e respostas de erro caindo no serializer default do Fastify (`{"statusCode","error","message"}`) em vez do envelope customizado (`{ error: { message, code } }`).
+- **Solução:** Envolver esses três plugins com `fp()` de `fastify-plugin` (`export const jwtPlugin = fp(async function jwtPlugin(app) { ... })`), que desativa o encapsulamento e aplica decorators/hooks/handlers no nível raiz da aplicação. Regra: qualquer plugin que declara `app.decorate`, `app.decorateRequest`, `app.setErrorHandler`, `app.setNotFoundHandler` ou um hook que outras rotas precisam enxergar **deve** usar `fp()`.
+
+### 5.8 Ordem de hooks `onRequest` entre plugins e rotas
+
+- **Problema:** `tenantScopePlugin` lia `request.user.tenant_id` dentro de um hook `onRequest` global. Como esse plugin é registrado em `app.ts` antes dos módulos de rota, seu hook `onRequest` executa antes do hook `onRequest` de autenticação (`app.authenticate`) que cada módulo de rota registra localmente — `request.user` ainda não existia, então `request.tenantId` ficava sempre `null`.
+- **Solução:** Trocar o hook de `tenantScopePlugin` de `onRequest` para `preHandler`. `preHandler` roda depois de todos os hooks `onRequest` (incluindo os registrados por rotas individuais), garantindo que `request.user` já esteja populado.
+
+### 5.9 Testes de integração rodando em paralelo colidem no mesmo banco
+
+- **Problema:** Por padrão o Vitest executa arquivos de teste em paralelo. Todos os testes de integração usam `deleteMany()` no mesmo banco `convoca_test` em `beforeEach`/`afterAll` — com múltiplos arquivos rodando ao mesmo tempo, um arquivo limpa dados que outro está usando, gerando `PrismaClientKnownRequestError` (violação de FK) e falhas intermitentes de asserção.
+- **Solução:** `fileParallelism: false` em `vitest.config.ts`. Força execução serial dos arquivos de teste — mais lento, mas necessário enquanto os testes de integração compartilharem um único banco sem transações isoladas por teste.
+
+### 5.10 Candidato precisa de JWT próprio sem `role` de empresa
+
+- **Problema:** `JWTPayload` original tinha `role: UserRole` obrigatório (enum de usuário de empresa: `SUPER_ADMIN`/`TENANT_ADMIN`/`RECRUITER`/`DEPARTMENT_LEAD`). `Candidate` (Spec 06) não pertence a nenhum tenant e não tem papel de empresa — forçar um `role` fake ou `tenant_id` sempre `null` criava ambiguidade fácil de confundir com bug (ex: um usuário de empresa mal cadastrado sem tenant).
+- **Solução:** `JWTPayload` virou union discriminada em `src/lib/rbac.ts`: `CompanyJWTPayload { type: "company"; user_id; tenant_id; role }` e `CandidateJWTPayload { type: "candidate"; candidate_id }`. `requireRoles(...)` rejeita qualquer token que não seja `type: "company"`; `requireCandidate` (novo guard) rejeita qualquer token que não seja `type: "candidate"`. `tenantScopePlugin` só popula `request.tenantId` quando `request.user.type === "company"`. O model `Candidate` no schema Prisma não tinha `passwordHash` — foi adicionado via migration `add_candidate_password_hash` (o candidato loga com email+senha, mesmo fluxo argon2 que usuários de empresa, via `hashPassword`/`verifyPassword`/`buildTokens` reaproveitados de `auth.service.ts`).
+
 ---
 
 ## 6. Status das Specs
@@ -171,8 +203,8 @@ npm start                        # node dist/server.js
 | 02 | Configuração base (Zod env, Pino, Prisma singleton, LLM config, ESLint/Prettier/Husky) | ✅ Implementada |
 | 03 | Autenticação e multi-tenancy (JWT, RBAC, middleware tenant_id) | ✅ Implementada |
 | 04 | Modelagem do banco de dados (schema Prisma completo + pgvector) | ✅ Implementada |
-| 05 | Cadastro de empresas e vagas | ⏳ Aguarda Sprint 3 |
-| 06 | Cadastro de candidatos | ⏳ Aguarda Sprint 3 |
+| 05 | Cadastro de empresas e vagas | ✅ Implementada |
+| 06 | Cadastro de candidatos | ✅ Implementada |
 | 07 | Matching engine (pgvector + embeddings) | ⏳ Aguarda 04+06 |
 | 08 | Agente de triagem (LangGraph) | ⏳ Aguarda 07 |
 | 09 | Integração WhatsApp (Evolution API) | ⏳ Aguarda 08 |
@@ -192,6 +224,10 @@ npm start                        # node dist/server.js
 | 2026-06 | `dotenv` carregado em `config/index.ts` | tsx não carrega `.env` automaticamente; centralizar o load junto à validação evita dependência de flag CLI |
 | 2026-06 | Multi-tenancy por coluna `tenant_id` | Mais simples de operar em fase PoC que schema-per-tenant; revisável se escala exigir |
 | 2026-06 | UUIDs como PKs | Evita vazamento de informação (contagem de registros) via IDs sequenciais em URLs públicas |
+| 2026-07 | Todo plugin transversal usa `fp()` de `fastify-plugin` | Sem isso, decorators/hooks/error handlers ficam presos ao encapsulamento do próprio plugin e não chegam às rotas — bug real encontrado na Sprint 3 (ver 5.7) |
+| 2026-07 | `fileParallelism: false` no Vitest | Testes de integração compartilham um único Postgres sem isolamento por transação; rodar arquivos em paralelo causa violação de FK e falhas intermitentes (ver 5.9) |
+| 2026-07 | `JWTPayload` como union discriminada (`type: "company"` \| `type: "candidate"`) | Candidato não tem `role` de empresa nem `tenant_id`; forçar esses campos como nullable/fake criaria ambiguidade com bugs reais de multi-tenancy (ver 5.10) |
+| 2026-07 | `Candidate.passwordHash` adicionado via migration | Candidato precisa de login próprio (Spec 06); reaproveita o mesmo fluxo argon2 de usuários de empresa em vez de um mecanismo de auth separado |
 
 ---
 

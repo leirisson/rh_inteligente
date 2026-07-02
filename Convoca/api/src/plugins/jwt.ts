@@ -1,4 +1,5 @@
 import fastifyJwt from "@fastify/jwt";
+import fp from "fastify-plugin";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { config } from "../config/index.js";
 import type { JWTPayload } from "../lib/rbac.js";
@@ -16,7 +17,7 @@ declare module "fastify" {
   }
 }
 
-export async function jwtPlugin(app: FastifyInstance) {
+export const jwtPlugin = fp(async function jwtPlugin(app: FastifyInstance) {
   await app.register(fastifyJwt, { secret: config.JWT_SECRET });
 
   app.decorate("authenticate", async (request: FastifyRequest, reply: FastifyReply) => {
@@ -26,4 +27,4 @@ export async function jwtPlugin(app: FastifyInstance) {
       await reply.status(401).send({ error: { message: "Unauthorized", code: "UNAUTHORIZED" } });
     }
   });
-}
+});

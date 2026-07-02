@@ -1,7 +1,7 @@
 # Sprint 3 — CRUD: Empresas, Vagas e Candidatos
 
 **Specs cobertas:** 05 (Cadastro de Empresas e Vagas) + 06 (Cadastro de Candidatos)
-**Status:** 🔒 Bloqueada (aguarda Sprint 2)
+**Status:** ✅ Concluída
 **Pré-requisito:** Sprint 2 concluída — banco com schema completo, JWT e middleware de tenant funcionais
 
 ---
@@ -28,10 +28,10 @@ Implementar os endpoints de CRUD do domínio core: cadastro de empresas (onboard
 
 ### Critérios de aceite esperados
 
-- [ ] Criar empresa retorna tenant + usuário admin com token JWT
-- [ ] CRUD de vagas restrito ao tenant — outro tenant não consegue ver nem editar
-- [ ] Vaga sem perguntas de triagem não pode ser ativada
-- [ ] Listar vagas retorna paginação
+- [x] Criar empresa retorna tenant + usuário admin com token JWT
+- [x] CRUD de vagas restrito ao tenant — outro tenant não consegue ver nem editar
+- [x] Vaga sem perguntas de triagem não pode ser ativada
+- [x] Listar vagas retorna paginação
 
 ---
 
@@ -49,10 +49,10 @@ Implementar os endpoints de CRUD do domínio core: cadastro de empresas (onboard
 
 ### Critérios de aceite esperados
 
-- [ ] Candidato consegue se cadastrar sem pertencer a nenhum tenant
-- [ ] Candidato consegue cadastrar múltiplos meios de contato
-- [ ] Candidato autenticado não acessa nenhuma rota restrita a papéis de empresa
-- [ ] Dados do candidato não aparecem em listagens de outros tenants
+- [x] Candidato consegue se cadastrar sem pertencer a nenhum tenant
+- [x] Candidato consegue cadastrar múltiplos meios de contato
+- [x] Candidato autenticado não acessa nenhuma rota restrita a papéis de empresa
+- [x] Dados do candidato não aparecem em listagens de outros tenants
 
 ---
 

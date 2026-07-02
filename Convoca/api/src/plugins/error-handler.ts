@@ -1,8 +1,9 @@
 import { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { hasZodFastifySchemaValidationErrors } from "fastify-type-provider-zod";
+import fp from "fastify-plugin";
 import { config } from "../config/index";
 
-export function errorHandlerPlugin(app: FastifyInstance): void {
+export const errorHandlerPlugin = fp(function errorHandlerPlugin(app: FastifyInstance) {
   app.setErrorHandler((error: FastifyError, request: FastifyRequest, reply: FastifyReply) => {
     const isProduction = config.NODE_ENV === "production";
 
@@ -46,4 +47,4 @@ export function errorHandlerPlugin(app: FastifyInstance): void {
       },
     });
   });
-}
+});

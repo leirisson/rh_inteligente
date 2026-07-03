@@ -28,7 +28,7 @@
 | Orquestração de agente | `@langchain/langgraph` + `@langchain/core` | — | `src/agent/graph.ts` — `StateGraph` linear disparado por `job.service.ts` quando uma vaga vira `ACTIVE` |
 | WhatsApp | Evolution API | — | `src/lib/contact-channel.ts` (`evolutionWhatsAppChannel`) — HTTP via `fetch`, sem SDK; sem credenciais reais ainda (env vars opcionais) |
 | E-mail | Nodemailer + SMTP | ^9.x | `src/lib/notification.ts` — `sendEmail()`; usado para fallback do canal de contato e para notificação de recrutadores |
-| Auth | JWT (access + refresh) | — | A implementar na Spec 03 |
+| Auth | JWT (access + refresh) | — | `src/lib/rbac.ts` — `CompanyJWTPayload`/`CandidateJWTPayload` discriminados por `type`, ver [[5.10]] |
 | Dev runner | tsx watch | ^4.x | Sem compilação em desenvolvimento |
 | Build | tsup | ^8.x | Saída CJS em `dist/` |
 | Lint/Format | ESLint 8 + Prettier 3 | — | `@typescript-eslint/recommended-requiring-type-checking` |
@@ -114,10 +114,12 @@ Convoca/api/
 │   │   └── interview/              ← POST/PATCH /applications/:id/interviews[/reschedule|/cancel]
 │   ├── app.ts                   ← buildApp() sem listen()
 │   └── server.ts                ← entry point, void main()
-├── .env / .env.example
+├── .env / .env.example / .env.test
 ├── .eslintrc.json / .prettierrc.json / .prettierignore
-├── .gitignore
-├── docker-compose.yml           ← pgvector/pgvector:pg16, porta 5432
+├── .gitignore / .dockerignore / .gitattributes
+├── docker-compose.yml           ← pgvector/pgvector:pg16 (5432) + Evolution API (8080), dev local
+├── Dockerfile                   ← multi-stage build/runtime, Node 20-slim + openssl
+├── docker-entrypoint.sh         ← prisma migrate deploy && exec "$@"
 ├── package.json
 ├── tsconfig.json / tsconfig.build.json
 └── specs/                       ← documentação (não tocar)
@@ -259,6 +261,11 @@ npm start                        # node dist/server.js
 - **Problema:** Diferente do `mockContactChannel` (Spec 08), que sempre "funcionava" por só gravar em `Conversation`, o `combinedContactChannel` real (Spec 09) propaga erro (`NO_WHATSAPP_CONTACT`/`NO_EMAIL_CONTACT`, ambos 422) quando o candidato não tem nenhum `ContactMethod` do canal necessário — e como `Candidate.contactMethods` é totalmente opcional no cadastro, isso quebra fluxos inteiros (ativação de vaga, resposta de triagem, agendamento de entrevista) caso um único candidato do lote esteja sem contato cadastrado.
 - **Solução:** Decisão deliberada (confirmada com o usuário): propagar o erro em vez de degradar graciosamente. Um candidato sem nenhum meio de contato é um dado de cadastro incompleto que deve ser corrigido, não silenciado — falhar alto e cedo evita que o recrutador só descubra o problema quando notar que ninguém respondeu. Efeito colateral a ter em mente: como `job.service.ts#updateJobStatus` chama `runScreeningAgent` de forma síncrona, um único candidato sem contato pode fazer a requisição `PATCH /jobs/:id/status` inteira falhar com 422, mesmo que outros candidatos do matching estivessem OK — revisável se isso se mostrar problemático em produção (ex: mover para processamento assíncrono por candidato).
 
+### 5.18 CI (GitHub Actions) sem job de lint bloqueante
+
+- **Problema:** Ao criar `.github/workflows/ci.yml`, `npm run lint` e `npm run format:check` já falhavam localmente no estado atual do repo (30 erros de ESLint pré-existentes em `auth.service.unit.test.ts` — `@typescript-eslint/unbound-method` — e em `tenant-scope.ts` — `require-await` —, mais um erro de parsing em `vitest.config.ts` por não estar incluído no `tsconfig.json`; e 15 arquivos fora do padrão do Prettier). Incluir esses steps como bloqueantes faria o primeiro CI falhar por dívida técnica não relacionada à Sprint 6.
+- **Solução:** Decisão confirmada com o usuário — job de lint/format omitido do workflow por enquanto (comentário `TODO` em `ci.yml` lista os erros pendentes). O workflow (`.github/workflows/ci.yml`, na raiz do monorepo, com `defaults.run.working-directory: Convoca/api` e `paths` filtrando por esse diretório) roda um único job `test`: sobe `pgvector/pgvector:pg16` como service container (usuário/senha/db iguais ao `docker-compose.yml` local, mas banco `convoca_test` em vez de `convoca_dev`), `npm ci` → `prisma generate` → `prisma migrate deploy` (com `DATABASE_URL` apontando pro service container) → `npm run build` → `npm run test:coverage`. `NODE_ENV=test` faz `src/config/index.ts` carregar `.env.test` (já commitado, com chaves fake de LLM — ver 5.16), então nenhum secret do GitHub é necessário ainda. Validado rodando a sequência completa localmente antes de commitar (19 arquivos de teste, 104 testes, todos passando). Reativar o job de lint quando os erros acima forem corrigidos.
+
 ### 5.19 Dockerfile: `npm ci` falha em produção por causa do script `prepare` (husky)
 
 - **Problema:** `package.json` declara `"prepare": "husky"`, que roda automaticamente em todo `npm install`/`npm ci` (inclusive `--omit=dev`). No estágio `runtime` da imagem (sem devDependencies, sem `.git`), o binário `husky` não existe e o comando falha com `sh: 1: husky: not found`, exit code 127 — quebra o `docker build` inteiro. No estágio `build`, o mesmo comando "funciona" silenciosamente porque `.git` existe no contexto, mas `husky` decide não fazer nada fora de um repo git — não deveria ser exigido em uma imagem de produção de qualquer forma.
@@ -274,10 +281,10 @@ npm start                        # node dist/server.js
 - **Problema:** `prisma generate`/`migrate deploy` na imagem `node:20-slim` emite `Prisma failed to detect the libssl/openssl version to use, and may not work as expected` — a imagem `slim` do Debian não vem com OpenSSL instalado, e o Prisma Client usa um binary engine linkado contra ele.
 - **Solução:** `RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*` em ambos os estágios do `Dockerfile` (build precisa para `prisma generate`; runtime precisa para o Query Engine em runtime). Validado rodando `docker build` + `docker run` de ponta a ponta contra um Postgres+pgvector standalone (fora do `docker-compose.yml` de dev): migrations aplicadas automaticamente, servidor sobe, `POST /tenants` retorna 201 com JWT válido.
 
-### 5.18 CI (GitHub Actions) sem job de lint bloqueante
+### 5.22 Rodando localmente: Postgres do `docker-compose.yml` + `npm run dev`
 
-- **Problema:** Ao criar `.github/workflows/ci.yml`, `npm run lint` e `npm run format:check` já falhavam localmente no estado atual do repo (30 erros de ESLint pré-existentes em `auth.service.unit.test.ts` — `@typescript-eslint/unbound-method` — e em `tenant-scope.ts` — `require-await` —, mais um erro de parsing em `vitest.config.ts` por não estar incluído no `tsconfig.json`; e 15 arquivos fora do padrão do Prettier). Incluir esses steps como bloqueantes faria o primeiro CI falhar por dívida técnica não relacionada à Sprint 6.
-- **Solução:** Decisão confirmada com o usuário — job de lint/format omitido do workflow por enquanto (comentário `TODO` em `ci.yml` lista os erros pendentes). O workflow (`.github/workflows/ci.yml`, na raiz do monorepo, com `defaults.run.working-directory: Convoca/api` e `paths` filtrando por esse diretório) roda um único job `test`: sobe `pgvector/pgvector:pg16` como service container (usuário/senha/db iguais ao `docker-compose.yml` local, mas banco `convoca_test` em vez de `convoca_dev`), `npm ci` → `prisma generate` → `prisma migrate deploy` (com `DATABASE_URL` apontando pro service container) → `npm run build` → `npm run test:coverage`. `NODE_ENV=test` faz `src/config/index.ts` carregar `.env.test` (já commitado, com chaves fake de LLM — ver 5.16), então nenhum secret do GitHub é necessário ainda. Validado rodando a sequência completa localmente antes de commitar (19 arquivos de teste, 104 testes, todos passando). Reativar o job de lint quando os erros acima forem corrigidos.
+- **Contexto:** Fluxo padrão de subida local, sem Docker para a API (só o Postgres roda em container). `docker compose up -d` sobe `convoca_postgres` (porta 5432) e `convoca_evolution` (porta 8080, opcional); `npm run dev` (`tsx watch src/server.ts`) lê `.env` e sobe a API na porta 3334. Migrations aplicadas via `npm run migrate` (dev) ou já em dia se `.env` aponta para um banco que já rodou migrations antes — checar com `npx prisma migrate status`.
+- **Nota:** Parar o servidor de dev iniciado em background nem sempre funciona com `pkill`/`pgrep` (ausentes neste ambiente Windows/Git Bash) — usar `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like "*server.ts*" }` + `Stop-Process` via PowerShell para encontrar e encerrar a árvore de processos (`cmd.exe` wrapper do npm script + `node.exe` do tsx watch + `node.exe` do processo filho real).
 
 ---
 

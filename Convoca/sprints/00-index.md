@@ -28,4 +28,4 @@ Cada sprint é derivada diretamente das specs (`api/specs/`). A divisão respeit
 | Sprint 3 | CRUD empresas/vagas + candidatos | ✅ Concluída |
 | Sprint 4 | Matching engine + Agente LangGraph | ✅ Concluída |
 | Sprint 5 | WhatsApp + Fases + Agendamento | ✅ Concluída |
-| Sprint 6 | Testes automatizados + Deploy | 🚧 Em andamento |
+| Sprint 6 | Testes automatizados + Deploy | 🚧 Em andamento — Spec 12 concluída; Spec 13 com CI e Dockerfile prontos, falta `deploy.yml`/observabilidade (aguarda VPS) |

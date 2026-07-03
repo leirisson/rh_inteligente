@@ -14,6 +14,9 @@ import { screeningQuestionRoutes } from "./modules/screening-question/screening-
 import { candidateRoutes } from "./modules/candidate/candidate.routes";
 import { matchingRoutes } from "./modules/matching/matching.routes";
 import { applicationRoutes } from "./modules/application/application.routes";
+import { funnelRoutes } from "./modules/application/funnel.routes";
+import { interviewRoutes } from "./modules/interview/interview.routes";
+import { whatsappWebhookRoutes } from "./modules/webhook/whatsapp.routes";
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -42,8 +45,11 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(jobRequirementRoutes, { prefix: "/jobs" });
   await app.register(screeningQuestionRoutes, { prefix: "/jobs" });
   await app.register(matchingRoutes, { prefix: "/jobs" });
+  await app.register(funnelRoutes, { prefix: "/jobs" });
   await app.register(candidateRoutes, { prefix: "/candidates" });
   await app.register(applicationRoutes, { prefix: "/applications" });
+  await app.register(interviewRoutes, { prefix: "/applications" });
+  await app.register(whatsappWebhookRoutes, { prefix: "/webhooks/whatsapp" });
 
   return app;
 }

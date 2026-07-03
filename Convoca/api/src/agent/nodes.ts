@@ -1,7 +1,8 @@
 import { ApplicationStatus } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { getJobMatches } from "../modules/matching/matching.service.js";
-import { mockContactChannel } from "../lib/contact-channel.js";
+import { combinedContactChannel } from "../lib/contact-channel.js";
+import { transitionApplication } from "../lib/application-transition.js";
 import type { AgentStateType, AgentApplication } from "./state.js";
 
 export async function findCandidates(state: AgentStateType): Promise<Partial<AgentStateType>> {
@@ -48,20 +49,17 @@ export async function sendInitialContact(state: AgentStateType): Promise<Partial
   if (!firstQuestion) return {};
 
   for (const application of state.applications) {
-    await mockContactChannel.send(application.applicationId, "EMAIL", firstQuestion.question);
+    await combinedContactChannel.send(
+      application.applicationId,
+      "WHATSAPP",
+      firstQuestion.question,
+    );
 
-    await prisma.application.update({
-      where: { id: application.applicationId },
-      data: { status: ApplicationStatus.IN_SCREENING },
-    });
-
-    await prisma.applicationStage.create({
-      data: {
-        applicationId: application.applicationId,
-        status: ApplicationStatus.IN_SCREENING,
-        note: "Initial contact sent by screening agent",
-      },
-    });
+    await transitionApplication(
+      application.applicationId,
+      ApplicationStatus.IN_SCREENING,
+      "Initial contact sent by screening agent",
+    );
   }
 
   return {};

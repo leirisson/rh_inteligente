@@ -26,3 +26,17 @@ export const applicationResponseSchema = z.object({
 });
 
 export type CandidateMessageBody = z.infer<typeof candidateMessageBodySchema>;
+
+export const funnelParamsSchema = z.object({
+  jobId: z.string().uuid(),
+});
+
+export const funnelResponseSchema = z.object({
+  PENDING_CONTACT: z.number().int(),
+  IN_SCREENING: z.number().int(),
+  APPROVED: z.number().int(),
+  REJECTED: z.number().int(),
+  INTERVIEW_SCHEDULED: z.number().int(),
+  HIRED: z.number().int(),
+  WITHDRAWN: z.number().int(),
+});

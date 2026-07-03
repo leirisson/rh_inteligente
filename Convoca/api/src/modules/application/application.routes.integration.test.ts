@@ -12,6 +12,13 @@ vi.mock("../../lib/answer-evaluator.js", () => ({
   evaluateAnswer: vi.fn(),
 }));
 
+const sendMailMock = vi
+  .fn<(mail: { from: string; to: string; subject: string; text: string }) => Promise<unknown>>()
+  .mockResolvedValue({});
+vi.mock("nodemailer", () => ({
+  default: { createTransport: vi.fn(() => ({ sendMail: sendMailMock })) },
+}));
+
 import { evaluateAnswer } from "../../lib/answer-evaluator.js";
 
 const evaluateAnswerMock = evaluateAnswer as unknown as ReturnType<typeof vi.fn>;
@@ -79,7 +86,16 @@ async function signupCandidate(suffix: string) {
       resumeText: "matching resume",
     },
   });
-  return res.json<{ candidate: { id: string } }>();
+  const candidate = res.json<{ accessToken: string; candidate: { id: string } }>();
+
+  await app.inject({
+    method: "POST",
+    url: "/candidates/me/contact-methods",
+    headers: makeAuthHeader(candidate.accessToken),
+    payload: { channel: "EMAIL", value: `candidate${suffix}@test.com` },
+  });
+
+  return candidate;
 }
 
 async function setupActiveJobWithApplication(
@@ -156,6 +172,14 @@ describe("POST /applications/:id/messages", () => {
       where: { applicationId: application.id },
     });
     expect(conversations.some((c) => c.sender === "CANDIDATE")).toBe(true);
+
+    // notifyRecruitersOnApproval is fire-and-forget (runs after the response is sent);
+    // wait briefly for its DB queries + sendMail call to settle.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const approvalMail = sendMailMock.mock.calls.find((call) =>
+      call[0].subject.includes("Candidato aprovado"),
+    );
+    expect(approvalMail).toBeDefined();
   });
 
   it("rejects the candidate when the weighted score is below the passing threshold", async () => {
@@ -226,5 +250,54 @@ describe("POST /applications/:id/messages", () => {
       payload: { content: "hi" },
     });
     expect(res.statusCode).toBe(401);
+  });
+});
+
+describe("GET /jobs/:jobId/funnel", () => {
+  it("returns zero-filled counts per status for the job", async () => {
+    const { tenant, job, application } = await setupActiveJobWithApplication("funnel", [
+      { question: "Why do you want this role?", order: 0, weight: 1 },
+    ]);
+
+    evaluateAnswerMock.mockResolvedValue({ score: 0.9, verdict: "PASS", reasoning: "Great fit" });
+    await app.inject({
+      method: "POST",
+      url: `/applications/${application.id}/messages`,
+      headers: makeAuthHeader(tenant.accessToken),
+      payload: { content: "I love building backend systems" },
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/jobs/${job.id}/funnel`,
+      headers: makeAuthHeader(tenant.accessToken),
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json<Record<string, number>>();
+    expect(body).toMatchObject({
+      PENDING_CONTACT: 0,
+      IN_SCREENING: 0,
+      APPROVED: 1,
+      REJECTED: 0,
+      INTERVIEW_SCHEDULED: 0,
+      HIRED: 0,
+      WITHDRAWN: 0,
+    });
+  });
+
+  it("returns 404 for a job outside the tenant", async () => {
+    const { job } = await setupActiveJobWithApplication("funnel-iso", [
+      { question: "Why do you want this role?", order: 0, weight: 1 },
+    ]);
+    const otherTenant = await loginNewTenant("funnel-iso-b");
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/jobs/${job.id}/funnel`,
+      headers: makeAuthHeader(otherTenant.accessToken),
+    });
+
+    expect(res.statusCode).toBe(404);
   });
 });

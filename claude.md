@@ -26,6 +26,8 @@
 | LLM | OpenRouter (Claude) | — | `llmClient` (SDK `openai`, `baseURL` do OpenRouter) instanciado em `src/lib/llm.ts`; usado por `src/lib/answer-evaluator.ts` para avaliar respostas de triagem |
 | Embeddings | OpenAI (`text-embedding-3-small`) | dim 1536 | `src/lib/embeddings.ts` — chamada HTTP direta via `fetch`, fora do OpenRouter (que não expõe endpoint de embeddings) |
 | Orquestração de agente | `@langchain/langgraph` + `@langchain/core` | — | `src/agent/graph.ts` — `StateGraph` linear disparado por `job.service.ts` quando uma vaga vira `ACTIVE` |
+| WhatsApp | Evolution API | — | `src/lib/contact-channel.ts` (`evolutionWhatsAppChannel`) — HTTP via `fetch`, sem SDK; sem credenciais reais ainda (env vars opcionais) |
+| E-mail | Nodemailer + SMTP | ^9.x | `src/lib/notification.ts` — `sendEmail()`; usado para fallback do canal de contato e para notificação de recrutadores |
 | Auth | JWT (access + refresh) | — | A implementar na Spec 03 |
 | Dev runner | tsx watch | ^4.x | Sem compilação em desenvolvimento |
 | Build | tsup | ^8.x | Saída CJS em `dist/` |
@@ -82,7 +84,9 @@ Convoca/api/
 │   │   ├── embeddings.ts        ← generateEmbedding() via OpenAI
 │   │   ├── vector.ts            ← set*Embedding() via $executeRaw
 │   │   ├── answer-evaluator.ts  ← evaluateAnswer() via llmClient
-│   │   └── contact-channel.ts   ← ContactChannel + mockContactChannel
+│   │   ├── contact-channel.ts   ← ContactChannel + mockContactChannel + evolutionWhatsAppChannel/emailChannel/combinedContactChannel
+│   │   ├── notification.ts      ← sendEmail() via Nodemailer + notifyRecruitersOnApproval()
+│   │   └── application-transition.ts ← ALLOWED_TRANSITIONS + transitionApplication() (validado, transacional)
 │   ├── agent/
 │   │   ├── state.ts             ← AgentState (Annotation.Root do LangGraph)
 │   │   ├── nodes.ts             ← findCandidates/createApplications/sendInitialContact
@@ -104,8 +108,10 @@ Convoca/api/
 │   │   ├── job-requirement/       ← requisitos aninhados em /jobs/:jobId/requirements
 │   │   ├── screening-question/    ← perguntas aninhadas em /jobs/:jobId/screening-questions
 │   │   ├── matching/               ← GET /jobs/:jobId/matches
-│   │   ├── application/            ← POST /applications/:id/messages (webhook simulado)
-│   │   └── candidate/             ← signup/login próprio, /candidates/me/*, sem tenant_id
+│   │   ├── application/            ← POST /applications/:id/messages (webhook simulado), funnel.service.ts + funnel.routes.ts (GET /jobs/:jobId/funnel)
+│   │   ├── candidate/             ← signup/login próprio, /candidates/me/*, sem tenant_id
+│   │   ├── webhook/                ← whatsapp.routes.ts: POST /webhooks/whatsapp/:tenantId (Evolution API inbound)
+│   │   └── interview/              ← POST/PATCH /applications/:id/interviews[/reschedule|/cancel]
 │   ├── app.ts                   ← buildApp() sem listen()
 │   └── server.ts                ← entry point, void main()
 ├── .env / .env.example
@@ -160,6 +166,9 @@ npm start                        # node dist/server.js
 | 11 | Interface de canal externo com implementação mock | Integrações que ainda não existem (WhatsApp/e-mail) mas cujo consumidor (o agente) precisa ser testável agora | `ContactChannel` em `src/lib/contact-channel.ts`; `mockContactChannel` registra em `Conversation` sem enviar de verdade — troca de implementação não muda o grafo — ver [[5.13]] |
 | 12 | Grafo LangGraph síncrono disparado por transição de estado | Orquestrar múltiplos passos de domínio (matching → criação de registros → contato) a partir de um evento de negócio | `src/agent/graph.ts` (`runScreeningAgent`), disparado em `job.service.ts` `updateJobStatus` quando o status vira `ACTIVE` — ver [[5.13]] |
 | 13 | Prompts como JSON estruturado + Structured Outputs | Qualquer chamada de LLM que precise de prompt versionável e saída JSON garantida | `src/prompts/*.json` (role/task/template/output_schema) + `src/prompts/loader.ts` (`renderPrompt`) — usado por `answer-evaluator.ts` via `response_format: json_schema` — ver [[5.15]] |
+| 14 | Serviço de transição de estado validado e transacional | Qualquer mudança de `ApplicationStatus` (fluxo de fases) | `src/lib/application-transition.ts` (`transitionApplication`, `ALLOWED_TRANSITIONS`) — usado por `application.service.ts`, `agent/nodes.ts` e `interview.service.ts`; nunca escrever `Application.status` direto via `prisma.application.update` |
+| 15 | Canal combinado com fallback (WhatsApp → e-mail) | Envio de mensagem ao candidato quando existe mais de um canal possível | `combinedContactChannel` em `src/lib/contact-channel.ts` — tenta `evolutionWhatsAppChannel`, cai para `emailChannel` em qualquer falha; grava em `Conversation` o canal realmente usado, não o solicitado — ver [[5.17]] |
+| 16 | Env vars opcionais para integrações ainda não configuradas | Serviço externo real cujas credenciais ainda não existem, mas cujo código já deve ser escrito | `EVOLUTION_API_*`, `SMTP_*` em `src/config/index.ts` — `.optional()` em vez de `.min(1)`; funções que os usam falham com erro tipado (503) em vez de derrubar a aplicação no boot |
 
 ---
 
@@ -240,6 +249,16 @@ npm start                        # node dist/server.js
 - **Problema:** O prompt de `evaluateAnswer` começou como template string embutido em `answer-evaluator.ts`, com o pedido "responda em JSON" feito por texto e parse manual (`JSON.parse` + validação de shape em runtime) como única garantia de formato — frágil e difícil de versionar/testar isoladamente. Além disso, carregar um arquivo `.json` de dentro de `src/prompts/` em runtime exige resolver o diretório do módulo — `import.meta.url` não existe de forma confiável no build final, que é CJS (`tsup --format cjs`).
 - **Solução:** Prompts viraram arquivos `.json` em `src/prompts/` (`{ role, task, template, input_variables, output_schema }`, com variantes por chave — ex: `with_expected_answer` vs `open_ended`). `src/prompts/loader.ts` expõe `renderPrompt(promptName, variantName, variables)`, que interpola `{{var}}` no template e devolve também um `responseFormat` pronto para `response_format: { type: "json_schema", json_schema: {...} }` da API — a validação de shape em `answer-evaluator.ts` continua como rede de segurança, mas a API agora é instruída a garantir o formato. Para carregar o `.json`, usar `__dirname` (nativo em CJS, funciona tanto em dev via `tsx` quanto no bundle final) em vez de `import.meta.url`. Como o `tsup` empacota tudo em um único `dist/server.js`, `__dirname` resolve para `dist/` em produção — por isso o script `copy:prompts` (`package.json`) copia `src/prompts/*.json` para `dist/prompts/` após o build, mantendo o mesmo caminho relativo (`prompts/<nome>.json`) que `loader.ts` espera a partir de `__dirname`.
 
+### 5.16 Testes de integração rodavam contra `convoca_dev`, não `convoca_test` (bug pré-existente, corrigido na Sprint 5)
+
+- **Problema:** `vitest.config.ts` declarava `envFiles: [".env.test"]`, mas essa opção do Vitest 4 não popula `process.env` (afeta só `import.meta.env`, mecanismo do Vite). `src/config/index.ts` chamava `dotenvConfig()` sem `path`, que carrega `.env` (desenvolvimento) incondicionalmente. Resultado: **todo teste de integração, desde o commit inicial do projeto, rodava contra o banco `convoca_dev`** — e como os testes fazem `deleteMany()` de todas as tabelas em `beforeEach`/`afterAll`, cada execução de teste apagava silenciosamente os dados de desenvolvimento. Descoberto na Sprint 5 ao adicionar `SMTP_*`/`EVOLUTION_WEBHOOK_SECRET` só em `.env.test` — esses valores nunca chegavam ao processo, causando falhas 503/401 inesperadas que expuseram o bug.
+- **Solução:** `src/config/index.ts` agora escolhe o arquivo de env explicitamente por `NODE_ENV` (`const envFile = process.env.NODE_ENV === "test" ? ".env.test" : ".env"; dotenvConfig({ path: envFile })`). Vitest seta `NODE_ENV=test` automaticamente antes de qualquer módulo rodar, então isso é suficiente — não depender de `envFiles` do Vitest para variáveis lidas via `process.env`. Qualquer novo `.env.<ambiente>` deve seguir esse mesmo padrão de seleção por `NODE_ENV`, não adicionar mais entradas em `envFiles`.
+
+### 5.17 `ContactChannel` real falha alto quando o candidato não tem o meio de contato necessário
+
+- **Problema:** Diferente do `mockContactChannel` (Spec 08), que sempre "funcionava" por só gravar em `Conversation`, o `combinedContactChannel` real (Spec 09) propaga erro (`NO_WHATSAPP_CONTACT`/`NO_EMAIL_CONTACT`, ambos 422) quando o candidato não tem nenhum `ContactMethod` do canal necessário — e como `Candidate.contactMethods` é totalmente opcional no cadastro, isso quebra fluxos inteiros (ativação de vaga, resposta de triagem, agendamento de entrevista) caso um único candidato do lote esteja sem contato cadastrado.
+- **Solução:** Decisão deliberada (confirmada com o usuário): propagar o erro em vez de degradar graciosamente. Um candidato sem nenhum meio de contato é um dado de cadastro incompleto que deve ser corrigido, não silenciado — falhar alto e cedo evita que o recrutador só descubra o problema quando notar que ninguém respondeu. Efeito colateral a ter em mente: como `job.service.ts#updateJobStatus` chama `runScreeningAgent` de forma síncrona, um único candidato sem contato pode fazer a requisição `PATCH /jobs/:id/status` inteira falhar com 422, mesmo que outros candidatos do matching estivessem OK — revisável se isso se mostrar problemático em produção (ex: mover para processamento assíncrono por candidato).
+
 ---
 
 ## 6. Status das Specs
@@ -254,9 +273,9 @@ npm start                        # node dist/server.js
 | 06 | Cadastro de candidatos | ✅ Implementada |
 | 07 | Matching engine (pgvector + embeddings) | ✅ Implementada |
 | 08 | Agente de triagem (LangGraph) | ✅ Implementada (canal de contato mockado — ver [[5.13]]) |
-| 09 | Integração WhatsApp (Evolution API) | ⏳ Aguarda 08 |
-| 10 | Fluxo de fases e classificação | ⏳ Aguarda 08 |
-| 11 | Agendamento de entrevista | ⏳ Aguarda 10 |
+| 09 | Integração WhatsApp (Evolution API) | ✅ Implementada (sem credenciais reais ainda — env vars opcionais, ver padrão 16 na seção 4) |
+| 10 | Fluxo de fases e classificação | ✅ Implementada (notificação de líder de setor simplificada para todos os recrutadores/admins — ver spec_6.md) |
+| 11 | Agendamento de entrevista | ✅ Implementada |
 | 12 | Testes automatizados | ⏳ Aguarda 11 |
 | 13 | Observabilidade e deploy | ⏳ Aguarda 12 |
 
@@ -283,6 +302,13 @@ npm start                        # node dist/server.js
 | 2026-07 | Agente cria `Application` automaticamente a partir do matching | Não existe fluxo de "candidatura" no produto ainda; sem isso o agente não teria onde registrar conversa/respostas/histórico — revisável quando houver candidatura explícita (ver 5.14) |
 | 2026-07 | Trigger do agente movido de "DRAFT→ACTIVE" para "qualquer transição→ACTIVE" | Reativar uma vaga pausada (`PAUSED→ACTIVE`) deve rodar o agente de novo para pegar novos candidatos compatíveis; o guard de "precisa ter screening questions" continua restrito à primeira ativação (`DRAFT→ACTIVE`) |
 | 2026-07 | Prompts extraídos para `src/prompts/*.json` + `response_format: json_schema` | Template string embutido no service era difícil de versionar/testar; JSON estruturado (role/task/template/output_schema) com Structured Outputs da API reduz a dependência do parse manual como única garantia de formato (ver 5.15) |
+| 2026-07 | Mapa de transição de `ApplicationStatus` centralizado em `application-transition.ts` | Duas escritas diretas de status sem validação (`application.service.ts`, `agent/nodes.ts`) permitiam transições ilegais; centralizar em `transitionApplication` com mapa explícito + transação garante que status e `ApplicationStage` nunca fiquem dessincronizados |
+| 2026-07 | `INTERVIEW_SCHEDULED → APPROVED` como transição válida (não terminal) | Representa cancelamento de entrevista agendada — candidato permanece aprovado e pode ser reagendado, em vez de precisar reiniciar a triagem |
+| 2026-07 | `InterviewSchedule` migrado de 1:1 (`@unique`) para 1:muitos com `InterviewStatus` | Reagendamento precisa preservar histórico (spec pede "novo `InterviewSchedule`" a cada reagendamento); 1:1 com overwrite perderia esse histórico |
+| 2026-07 | Notificação de aprovação vai para todos `TENANT_ADMIN`+`RECRUITER` do tenant, não para "líder de setor" específico | Não existe relação `Job`↔`User` responsável pela área no schema atual; forçar essa modelagem agora seria decisão de produto não especificada — simplificação confirmada com o usuário, documentada como fora de escopo em spec_6.md |
+| 2026-07 | `ContactChannel` real propaga erro (não degrada) quando candidato não tem o meio de contato necessário | Decisão confirmada com o usuário: falhar alto evita que cadastros incompletos passem despercebidos; aceita o efeito colateral de um único candidato sem contato poder derrubar a ativação síncrona de uma vaga inteira (ver 5.17) |
+| 2026-07 | `EVOLUTION_API_*`/`SMTP_*` como env vars opcionais, com erro tipado em runtime em vez de fail-fast no boot | Diferente de `OPENROUTER_API_KEY`/`OPENAI_API_KEY` (sempre necessárias), essas integrações não têm credenciais reais disponíveis ainda — bloquear `npm run dev`/testes seria pior que degradar graciosamente até a Sprint de integração real |
+| 2026-07 | `src/config/index.ts` carrega `.env.test` quando `NODE_ENV=test`, em vez de depender de `envFiles` do Vitest | `envFiles` do Vitest 4 não popula `process.env`; bug pré-existente fazia todo teste de integração rodar (e apagar dados) no banco `convoca_dev` em vez de `convoca_test` — corrigido na Sprint 5 (ver 5.16) |
 
 ---
 
@@ -296,3 +322,5 @@ npm start                        # node dist/server.js
 | Screening | Triagem inicial conduzida pelo agente de IA via conversa (WhatsApp ou e-mail) |
 | Job | Vaga de emprego publicada por um tenant; status: DRAFT → ACTIVE → PAUSED/CLOSED |
 | Matching | Comparação semântica por embeddings (pgvector) entre perfil do candidato e requisitos da vaga |
+| Funil | Contagem de `Application`s por status atual, agrupada por vaga (`GET /jobs/:jobId/funnel`) — usado pelo recrutador para visualizar o progresso do processo seletivo |
+| InterviewSchedule | Registro de agendamento de entrevista; 1:muitos com `Application` (histórico de reagendamentos), com `status`: SCHEDULED → RESCHEDULED/CANCELLED |

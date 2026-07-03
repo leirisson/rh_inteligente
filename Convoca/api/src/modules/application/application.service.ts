@@ -1,7 +1,8 @@
-import { ApplicationStatus } from "@prisma/client";
+import { ApplicationStatus, type Channel } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { evaluateAnswer } from "../../lib/answer-evaluator.js";
-import { mockContactChannel } from "../../lib/contact-channel.js";
+import { combinedContactChannel } from "../../lib/contact-channel.js";
+import { transitionApplication } from "../../lib/application-transition.js";
 
 function applicationNotFoundError() {
   return Object.assign(new Error("Application not found"), {
@@ -22,6 +23,7 @@ export async function processCandidateMessage(
   tenantId: string,
   applicationId: string,
   content: string,
+  channel: Channel = "EMAIL",
 ) {
   const application = await assertApplicationInTenant(tenantId, applicationId);
 
@@ -29,7 +31,7 @@ export async function processCandidateMessage(
     data: {
       applicationId,
       sender: "CANDIDATE",
-      channel: "EMAIL",
+      channel,
       content,
       sentAt: new Date(),
     },
@@ -76,7 +78,7 @@ export async function processCandidateMessage(
 
   if (remainingQuestions.length > 0) {
     const nextQuestion = remainingQuestions[0];
-    await mockContactChannel.send(applicationId, "EMAIL", nextQuestion.question);
+    await combinedContactChannel.send(applicationId, "WHATSAPP", nextQuestion.question);
     return application;
   }
 
@@ -95,18 +97,9 @@ export async function processCandidateMessage(
   const approved = finalScore >= 0.6;
   const finalStatus = approved ? ApplicationStatus.APPROVED : ApplicationStatus.REJECTED;
 
-  const updated = await prisma.application.update({
-    where: { id: applicationId },
-    data: { status: finalStatus },
-  });
-
-  await prisma.applicationStage.create({
-    data: {
-      applicationId,
-      status: finalStatus,
-      note: `Screening completed with weighted score ${finalScore.toFixed(2)}`,
-    },
-  });
-
-  return updated;
+  return transitionApplication(
+    applicationId,
+    finalStatus,
+    `Screening completed with weighted score ${finalScore.toFixed(2)}`,
+  );
 }

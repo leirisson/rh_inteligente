@@ -1,7 +1,8 @@
 import { config as dotenvConfig } from "dotenv";
 import { z } from "zod";
 
-dotenvConfig();
+const envFile = process.env.NODE_ENV === "test" ? ".env.test" : ".env";
+dotenvConfig({ path: envFile });
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -21,6 +22,19 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().min(1),
 
   CORS_ORIGIN: z.string().default("*"),
+
+  // Evolution API (WhatsApp) — sem credenciais reais ainda, opcionais
+  EVOLUTION_API_URL: z.string().url().optional(),
+  EVOLUTION_API_KEY: z.string().optional(),
+  EVOLUTION_INSTANCE_NAME: z.string().optional(),
+  EVOLUTION_WEBHOOK_SECRET: z.string().min(16).optional(),
+
+  // SMTP (Nodemailer) — opcional, degrada com erro tratável se ausente
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASSWORD: z.string().optional(),
+  SMTP_FROM: z.string().default("Convoca <no-reply@convoca.app>"),
 });
 
 const _parsed = envSchema.safeParse(process.env);

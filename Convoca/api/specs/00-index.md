@@ -89,6 +89,9 @@ Cada `spec.md` segue o mesmo template interno (contexto, escopo, requisitos func
 - [x] 02 — Configuração base
 - [x] 03 — Autenticação e multi-tenancy
 - [x] 04 — Modelagem do banco de dados
-- [ ] 05 a 13 — a criar nas próximas etapas
+- [x] 09 — Integração WhatsApp (`spec_5.md`)
+- [x] 10 — Fluxo de fases e classificação (`spec_6.md`)
+- [x] 11 — Agendamento de entrevista (`spec_7.md`)
+- [ ] 05, 06, 07, 08, 12, 13 — implementadas sem `spec.md` formal (ver `Convoca/sprints/` para escopo e status de cada sprint)
 
-> As specs das camadas 5 e 6 só serão detalhadas depois que 01–04 estiverem aprovadas, para evitar retrabalho caso o schema do banco mude.
+> As specs de 05 a 08 foram implementadas diretamente a partir do escopo descrito nos sprints, sem passar por um `spec.md` formal antes do código — prática retomada a partir da Spec 09 (09/10/11 têm spec escrita antes da implementação, seguindo a intenção original deste índice).

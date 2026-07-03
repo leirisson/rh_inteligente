@@ -8,6 +8,10 @@ vi.mock("../lib/embeddings.js", () => ({
   generateEmbedding: vi.fn().mockResolvedValue([1, ...new Array<number>(1535).fill(0)]),
 }));
 
+vi.mock("nodemailer", () => ({
+  default: { createTransport: vi.fn(() => ({ sendMail: vi.fn().mockResolvedValue({}) })) },
+}));
+
 let app: FastifyInstance;
 
 beforeAll(async () => {
@@ -70,7 +74,16 @@ async function signupCandidate(suffix: string) {
       resumeText: "matching resume",
     },
   });
-  return res.json<{ candidate: { id: string } }>();
+  const candidate = res.json<{ accessToken: string; candidate: { id: string } }>();
+
+  await app.inject({
+    method: "POST",
+    url: "/candidates/me/contact-methods",
+    headers: makeAuthHeader(candidate.accessToken),
+    payload: { channel: "EMAIL", value: `candidate${suffix}@test.com` },
+  });
+
+  return candidate;
 }
 
 describe("runScreeningAgent (via job activation)", () => {

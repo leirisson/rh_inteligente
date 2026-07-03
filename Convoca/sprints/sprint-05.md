@@ -1,7 +1,7 @@
 # Sprint 5 — WhatsApp, Fases e Agendamento de Entrevista
 
-**Specs cobertas:** 09 (Integração WhatsApp) + 10 (Fluxo de Fases e Classificação) + 11 (Agendamento de Entrevista)
-**Status:** 🔒 Bloqueada (aguarda Sprint 4)
+**Specs cobertas:** [09 (Integração WhatsApp)](../api/specs/spec_5.md) + [10 (Fluxo de Fases e Classificação)](../api/specs/spec_6.md) + [11 (Agendamento de Entrevista)](../api/specs/spec_7.md)
+**Status:** ✅ Concluída
 **Pré-requisito:** Sprint 4 concluída — agente de triagem funcional, candidatos classificados
 
 ---
@@ -14,98 +14,83 @@ Conectar o agente ao mundo real via WhatsApp (Evolution API), implementar as tra
 
 ## Entregas da Spec 09 — Integração WhatsApp (Evolution API)
 
-> Spec ainda não escrita — será detalhada após Sprint 4 estar aprovada.
-> Preencher esta seção quando a spec 09 for criada em `api/specs/`.
+Ver [spec_5.md](../api/specs/spec_5.md) para o detalhamento completo.
 
-### Escopo esperado (baseado no domínio)
+- `evolutionWhatsAppChannel` (`src/lib/contact-channel.ts`) — envio real via Evolution API (`fetch`, sem SDK)
+- `combinedContactChannel` — WhatsApp com fallback automático para e-mail (Nodemailer/SMTP)
+- `POST /webhooks/whatsapp/:tenantId` — recebe resposta do candidato, resolve telefone → `ContactMethod` → `Candidate` → `Application` (`IN_SCREENING`), autenticado via `X-Webhook-Secret`
+- Sem credenciais reais da Evolution API disponíveis ainda — env vars opcionais, testes mockam toda chamada de rede
 
-- Integração com Evolution API para envio e recebimento de mensagens WhatsApp
-- Webhook para receber respostas dos candidatos e alimentar o agente (Spec 08)
-- Fallback para e-mail quando candidato não tem WhatsApp cadastrado
-- Registro de cada mensagem em `Conversation` com canal (`WHATSAPP` | `EMAIL`)
+### Critérios de aceite
 
-### Decisões técnicas previstas
-
-| Item | Escolha esperada |
-|------|-----------------|
-| Provider WhatsApp | Evolution API (self-hosted ou cloud) |
-| Integração e-mail | Nodemailer ou API transacional (a definir) |
-| Webhook | Rota POST autenticada em `POST /webhooks/whatsapp` |
-
-### Critérios de aceite esperados
-
-- [ ] Agente consegue enviar mensagem via WhatsApp usando número do `ContactMethod`
-- [ ] Resposta do candidato via WhatsApp chega ao agente via webhook
-- [ ] Fallback para e-mail funciona quando canal preferencial é `EMAIL`
-- [ ] Cada mensagem (enviada e recebida) é registrada em `Conversation` com timestamp e canal
+- [x] Agente consegue enviar mensagem via WhatsApp usando número do `ContactMethod`
+- [x] Resposta do candidato via WhatsApp chega ao agente via webhook
+- [x] Fallback para e-mail funciona quando canal preferencial é `EMAIL` ou WhatsApp falha
+- [x] Cada mensagem (enviada e recebida) é registrada em `Conversation` com timestamp e canal
 
 ---
 
 ## Entregas da Spec 10 — Fluxo de Fases e Classificação
 
-> Spec ainda não escrita — será detalhada após Sprint 4 estar aprovada.
-> Preencher esta seção quando a spec 10 for criada em `api/specs/`.
+Ver [spec_6.md](../api/specs/spec_6.md) para o detalhamento completo.
 
-### Escopo esperado (baseado no domínio)
+- `transitionApplication()` (`src/lib/application-transition.ts`) — mapa de transição explícito, validado e transacional; substitui as escritas diretas de status em `application.service.ts` e `agent/nodes.ts`
+- Notificação por e-mail a `TENANT_ADMIN`+`RECRUITER` do tenant quando `Application` vira `APPROVED` (roteamento para líder de setor específico ficou fora de escopo — não há relação `Job`↔`User` de área no schema)
+- `GET /jobs/:jobId/funnel` — contagem de candidatos por status atual, zero-filled
 
-- Transições válidas de `ApplicationStatus`:
-  ```
-  PENDING_CONTACT → IN_SCREENING → APPROVED → INTERVIEW_SCHEDULED → HIRED
-                                 ↘ REJECTED
-                 ↘ WITHDRAWN (candidato desiste a qualquer momento)
-  ```
-- Cada transição gera um novo registro em `ApplicationStage` (append-only)
-- Notificação ao recrutador quando candidato é `APPROVED`
-- Notificação ao líder de setor quando candidato é `APPROVED` para sua área
-- Regras de negócio de transição (ex: não pode ir para `INTERVIEW_SCHEDULED` sem estar `APPROVED`)
+### Critérios de aceite
 
-### Critérios de aceite esperados
-
-- [ ] Transição inválida é rejeitada com 422 e mensagem clara
-- [ ] Histórico de fases é imutável — não é possível sobrescrever um `ApplicationStage`
-- [ ] Recrutador recebe notificação quando candidato é aprovado
-- [ ] Relatório de funil: quantos em cada fase por vaga
+- [x] Transição inválida é rejeitada com 422 e mensagem clara
+- [x] Histórico de fases é imutável — não é possível sobrescrever um `ApplicationStage`
+- [x] Recrutador/admin recebe notificação quando candidato é aprovado
+- [x] Relatório de funil: quantos em cada fase por vaga
 
 ---
 
 ## Entregas da Spec 11 — Agendamento de Entrevista
 
-> Spec ainda não escrita — será detalhada após Sprint 4 estar aprovada.
-> Preencher esta seção quando a spec 11 for criada em `api/specs/`.
+Ver [spec_7.md](../api/specs/spec_7.md) para o detalhamento completo.
 
-### Escopo esperado (baseado no domínio)
+- `src/modules/interview/` — `POST /applications/:id/interviews`, `PATCH .../interviews/reschedule`, `PATCH .../interviews/cancel`
+- `InterviewSchedule` migrado de 1:1 para 1:muitos com `InterviewStatus` (SCHEDULED/RESCHEDULED/CANCELLED), preservando histórico de reagendamentos
+- Cancelamento transiciona a `Application` de volta para `APPROVED` (não terminal — permite reagendar depois)
+- Notificação ao candidato via canal combinado em todas as três ações
 
-- Recrutador ou Líder agenda entrevista para candidato `APPROVED`
-- Cria registro em `InterviewSchedule` com data/hora, local/link e participantes
-- Notificação ao candidato via WhatsApp/e-mail com os detalhes da entrevista
-- Transição automática de `ApplicationStatus` para `INTERVIEW_SCHEDULED`
-- Possibilidade de reagendar ou cancelar
+### Critérios de aceite
 
-### Critérios de aceite esperados
-
-- [ ] Não é possível agendar entrevista para candidato com status diferente de `APPROVED`
-- [ ] Candidato recebe confirmação da entrevista pelo canal preferencial
-- [ ] Reagendamento gera novo `InterviewSchedule` e notifica o candidato
-- [ ] Cancelamento atualiza status e notifica candidato
+- [x] Não é possível agendar entrevista para candidato com status diferente de `APPROVED`
+- [x] Candidato recebe confirmação da entrevista pelo canal preferencial
+- [x] Reagendamento gera novo `InterviewSchedule` e notifica o candidato
+- [x] Cancelamento atualiza status e notifica candidato
 
 ---
 
-## Arquivos a criar (estrutura esperada)
+## Arquivos criados/modificados
 
-```
+```text
 src/
+├── lib/
+│   ├── contact-channel.ts       ← + evolutionWhatsAppChannel/emailChannel/combinedContactChannel
+│   ├── notification.ts          ← novo: sendEmail() + notifyRecruitersOnApproval()
+│   └── application-transition.ts ← novo: ALLOWED_TRANSITIONS + transitionApplication()
 ├── modules/
 │   ├── webhook/
-│   │   └── whatsapp.routes.ts     ← POST /webhooks/whatsapp
-│   ├── messaging/
-│   │   ├── whatsapp.service.ts    ← Evolution API client
-│   │   └── email.service.ts       ← cliente de e-mail transacional
+│   │   ├── whatsapp.routes.ts     ← POST /webhooks/whatsapp/:tenantId
+│   │   ├── whatsapp.service.ts    ← resolução candidato/aplicação + delega a processCandidateMessage
+│   │   └── whatsapp.schema.ts
 │   ├── application/
-│   │   ├── application.service.ts ← transições de fase + validações
-│   │   └── application.routes.ts
+│   │   ├── application.service.ts ← refatorado para usar transitionApplication()
+│   │   ├── funnel.service.ts      ← novo
+│   │   └── funnel.routes.ts       ← novo: GET /jobs/:jobId/funnel
 │   └── interview/
-│       ├── interview.service.ts
-│       └── interview.routes.ts
+│       ├── interview.service.ts   ← novo
+│       ├── interview.routes.ts    ← novo
+│       └── interview.schema.ts    ← novo
+├── agent/nodes.ts                 ← sendInitialContact usa transitionApplication() + combinedContactChannel
+└── config/index.ts                ← + EVOLUTION_API_*, SMTP_* (opcionais)
+
+prisma/migrations/
+└── 20260702233154_interview_schedule_history/  ← InterviewSchedule 1:1 → 1:muitos + InterviewStatus
 ```
 
-> Esta estrutura será revisada quando as specs 09, 10 e 11 forem escritas.
+Também corrigido nesta sprint (fora do escopo original, mas bloqueante para os testes): `src/config/index.ts` carregava sempre `.env` em testes, fazendo os testes de integração rodarem contra `convoca_dev` em vez de `convoca_test` — ver CLAUDE.md 5.16.

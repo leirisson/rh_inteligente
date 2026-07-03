@@ -43,6 +43,12 @@ enum Channel {
   EMAIL
 }
 
+enum InterviewStatus {
+  SCHEDULED
+  RESCHEDULED
+  CANCELLED
+}
+
 // ─── Tenant ──────────────────────────────────────────────────────────────────
 
 model Tenant {
@@ -172,12 +178,12 @@ model Application {
   createdAt   DateTime          @default(now()) @map("created_at")
   updatedAt   DateTime          @updatedAt @map("updated_at")
 
-  candidate         Candidate          @relation(fields: [candidateId], references: [id])
-  job               Job                @relation(fields: [jobId], references: [id])
-  answers           ScreeningAnswer[]
-  stages            ApplicationStage[]
-  conversations     Conversation[]
-  interviewSchedule InterviewSchedule?
+  candidate          Candidate          @relation(fields: [candidateId], references: [id])
+  job                Job                @relation(fields: [jobId], references: [id])
+  answers            ScreeningAnswer[]
+  stages             ApplicationStage[]
+  conversations      Conversation[]
+  interviewSchedules InterviewSchedule[]
 
   @@unique([candidateId, jobId])
   @@map("applications")
@@ -232,15 +238,17 @@ model Conversation {
 // ─── InterviewSchedule ────────────────────────────────────────────────────────
 
 model InterviewSchedule {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  applicationId String   @unique @map("application_id") @db.Uuid
-  scheduledAt   DateTime @map("scheduled_at")
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  applicationId String          @map("application_id") @db.Uuid
+  status        InterviewStatus @default(SCHEDULED)
+  scheduledAt   DateTime        @map("scheduled_at")
   location      String?
   notes         String?
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
 
   application Application @relation(fields: [applicationId], references: [id])
 
+  @@index([applicationId])
   @@map("interview_schedules")
 }

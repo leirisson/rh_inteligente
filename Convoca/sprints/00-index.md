@@ -12,6 +12,7 @@ Cada sprint é derivada diretamente das specs (`api/specs/`). A divisão respeit
 | Sprint 4 | 07 + 08 | Matching engine + Agente LangGraph | [sprint-04.md](sprint-04.md) |
 | Sprint 5 | 09 + 10 + 11 | WhatsApp + Fases + Agendamento | [sprint-05.md](sprint-05.md) |
 | Sprint 6 | 12 + 13 | Testes automatizados + Deploy | [sprint-06.md](sprint-06.md) |
+| Sprint 7 | 14 | WhatsApp institucional multi-tenant + contato pessoal do recrutador | [sprint-07.md](sprint-07.md) |
 
 ## Regras
 
@@ -29,3 +30,4 @@ Cada sprint é derivada diretamente das specs (`api/specs/`). A divisão respeit
 | Sprint 4 | Matching engine + Agente LangGraph | ✅ Concluída |
 | Sprint 5 | WhatsApp + Fases + Agendamento | ✅ Concluída |
 | Sprint 6 | Testes automatizados + Deploy | 🚧 Em andamento — Spec 12 concluída; Spec 13 com CI e Dockerfile prontos, falta `deploy.yml`/observabilidade (aguarda VPS) |
+| Sprint 7 | WhatsApp institucional multi-tenant + contato pessoal do recrutador | 🔲 Não iniciada — spec escrita (`spec_10.md`), aguarda spike técnico de multi-instância na Evolution API |

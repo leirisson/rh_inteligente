@@ -23,6 +23,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await prisma.tenantIntegration.deleteMany();
   await prisma.conversation.deleteMany();
   await prisma.applicationStage.deleteMany();
   await prisma.screeningAnswer.deleteMany();
@@ -39,6 +40,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  await prisma.tenantIntegration.deleteMany();
   await prisma.conversation.deleteMany();
   await prisma.applicationStage.deleteMany();
   await prisma.screeningAnswer.deleteMany();
@@ -200,5 +202,62 @@ describe("POST /webhooks/whatsapp/:tenantId", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ received: true });
+  });
+
+  it("transitions TenantIntegration to CONNECTED on a connection.update open event", async () => {
+    const tenant = await loginNewTenant("wh-conn");
+    const instanceName = `convoca_${tenant.tenantId}`;
+    await prisma.tenantIntegration.create({
+      data: { tenantId: tenant.tenantId, evolutionInstanceName: instanceName, status: "CONNECTING" },
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/webhooks/whatsapp/${tenant.tenantId}`,
+      headers: { "x-webhook-secret": "test-webhook-secret-value" },
+      payload: {
+        event: "connection.update",
+        instance: instanceName,
+        data: { state: "open", wuid: "5511987654321@s.whatsapp.net" },
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+
+    const integration = await prisma.tenantIntegration.findUniqueOrThrow({
+      where: { tenantId: tenant.tenantId },
+    });
+    expect(integration.status).toBe("CONNECTED");
+    expect(integration.connectedPhoneNumber).toBe("5511987654321");
+    expect(integration.lastConnectedAt).not.toBeNull();
+  });
+
+  it("ignores a connection.update event whose instance doesn't match the tenant's integration", async () => {
+    const tenant = await loginNewTenant("wh-conn-mismatch");
+    await prisma.tenantIntegration.create({
+      data: {
+        tenantId: tenant.tenantId,
+        evolutionInstanceName: `convoca_${tenant.tenantId}`,
+        status: "CONNECTING",
+      },
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/webhooks/whatsapp/${tenant.tenantId}`,
+      headers: { "x-webhook-secret": "test-webhook-secret-value" },
+      payload: {
+        event: "connection.update",
+        instance: "some_other_instance",
+        data: { state: "open", wuid: "5511987654321@s.whatsapp.net" },
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+
+    const integration = await prisma.tenantIntegration.findUniqueOrThrow({
+      where: { tenantId: tenant.tenantId },
+    });
+    expect(integration.status).toBe("CONNECTING");
   });
 });

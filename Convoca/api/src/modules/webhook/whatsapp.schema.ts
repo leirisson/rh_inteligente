@@ -6,6 +6,8 @@ export const whatsappWebhookParamsSchema = z.object({
 
 export const whatsappWebhookBodySchema = z
   .object({
+    event: z.string().optional(),
+    instance: z.string().optional(),
     data: z
       .object({
         key: z
@@ -21,6 +23,9 @@ export const whatsappWebhookBodySchema = z
           })
           .partial()
           .optional(),
+        state: z.string().optional(),
+        instance: z.string().optional(),
+        wuid: z.string().optional(),
       })
       .partial()
       .optional(),

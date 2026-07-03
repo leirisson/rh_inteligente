@@ -26,7 +26,7 @@
 | LLM | OpenRouter (Claude) | — | `llmClient` (SDK `openai`, `baseURL` do OpenRouter) instanciado em `src/lib/llm.ts`; usado por `src/lib/answer-evaluator.ts` para avaliar respostas de triagem |
 | Embeddings | OpenAI (`text-embedding-3-small`) | dim 1536 | `src/lib/embeddings.ts` — chamada HTTP direta via `fetch`, fora do OpenRouter (que não expõe endpoint de embeddings) |
 | Orquestração de agente | `@langchain/langgraph` + `@langchain/core` | — | `src/agent/graph.ts` — `StateGraph` linear disparado por `job.service.ts` quando uma vaga vira `ACTIVE` |
-| WhatsApp | Evolution API | — | `src/lib/contact-channel.ts` (`evolutionWhatsAppChannel`) — HTTP via `fetch`, sem SDK; sem credenciais reais ainda (env vars opcionais) |
+| WhatsApp | Evolution API | — | `src/lib/contact-channel.ts` (`evolutionWhatsAppChannel`) — HTTP via `fetch`, sem SDK; instância/token por tenant em `TenantIntegration` (Spec 14), credenciais mestras (`EVOLUTION_API_URL/KEY`) opcionais em `config` |
 | E-mail | Nodemailer + SMTP | ^9.x | `src/lib/notification.ts` — `sendEmail()`; usado para fallback do canal de contato e para notificação de recrutadores |
 | Auth | JWT (access + refresh) | — | `src/lib/rbac.ts` — `CompanyJWTPayload`/`CandidateJWTPayload` discriminados por `type`, ver [[5.10]] |
 | Dev runner | tsx watch | ^4.x | Sem compilação em desenvolvimento |
@@ -64,6 +64,14 @@ OPENAI_API_KEY=sk-...
 
 # CORS
 CORS_ORIGIN=http://localhost:3001
+
+# URL pública deste servidor (webhook por-instância na Evolution API)
+PUBLIC_BASE_URL=http://localhost:3334
+
+# Evolution API (WhatsApp) — credenciais mestras do servidor compartilhado
+EVOLUTION_API_URL=http://localhost:8080
+EVOLUTION_API_KEY=...
+EVOLUTION_WEBHOOK_SECRET=<min 16 chars>
 ```
 
 > **Regra crítica:** Apenas `src/config/index.ts` lê `process.env`. Todo o resto importa de `config`.
@@ -103,21 +111,24 @@ Convoca/api/
 │   │   └── health.ts            ← GET /health
 │   ├── modules/
 │   │   ├── auth/                 ← login, refresh
-│   │   ├── tenant/                ← onboarding (POST /tenants)
+│   │   ├── tenant/                ← onboarding (POST /tenants) + tenant-integration.{routes,service,schema}.ts (WhatsApp institucional, Spec 14)
 │   │   ├── job/                   ← CRUD de vagas (tenant-scoped), dispara o agente em ACTIVE
 │   │   ├── job-requirement/       ← requisitos aninhados em /jobs/:jobId/requirements
 │   │   ├── screening-question/    ← perguntas aninhadas em /jobs/:jobId/screening-questions
 │   │   ├── matching/               ← GET /jobs/:jobId/matches
 │   │   ├── application/            ← POST /applications/:id/messages (webhook simulado), funnel.service.ts + funnel.routes.ts (GET /jobs/:jobId/funnel)
 │   │   ├── candidate/             ← signup/login próprio, /candidates/me/*, sem tenant_id
-│   │   ├── webhook/                ← whatsapp.routes.ts: POST /webhooks/whatsapp/:tenantId (Evolution API inbound)
+│   │   ├── user/                   ← GET/PATCH /users/me (name/phone, Spec 14) — qualquer papel de empresa
+│   │   ├── webhook/                ← whatsapp.routes.ts: POST /webhooks/whatsapp/:tenantId (Evolution API inbound: mensagens + connection.update)
 │   │   └── interview/              ← POST/PATCH /applications/:id/interviews[/reschedule|/cancel]
 │   ├── app.ts                   ← buildApp() sem listen()
 │   └── server.ts                ← entry point, void main()
 ├── .env / .env.example / .env.test
 ├── .eslintrc.json / .prettierrc.json / .prettierignore
 ├── .gitignore / .dockerignore / .gitattributes
-├── docker-compose.yml           ← pgvector/pgvector:pg16 (5432) + Evolution API (8080), dev local
+├── docker/
+│   └── postgres-init/            ← scripts *.sql rodados 1x no init do volume (cria evolution_dev, convoca_test)
+├── docker-compose.yml           ← pgvector/pgvector:pg16 (5432) + evoapicloud/evolution-api (8080), dev local
 ├── Dockerfile                   ← multi-stage build/runtime, Node 20-slim + openssl
 ├── docker-entrypoint.sh         ← prisma migrate deploy && exec "$@"
 ├── package.json
@@ -171,6 +182,7 @@ npm start                        # node dist/server.js
 | 14 | Serviço de transição de estado validado e transacional | Qualquer mudança de `ApplicationStatus` (fluxo de fases) | `src/lib/application-transition.ts` (`transitionApplication`, `ALLOWED_TRANSITIONS`) — usado por `application.service.ts`, `agent/nodes.ts` e `interview.service.ts`; nunca escrever `Application.status` direto via `prisma.application.update` |
 | 15 | Canal combinado com fallback (WhatsApp → e-mail) | Envio de mensagem ao candidato quando existe mais de um canal possível | `combinedContactChannel` em `src/lib/contact-channel.ts` — tenta `evolutionWhatsAppChannel`, cai para `emailChannel` em qualquer falha; grava em `Conversation` o canal realmente usado, não o solicitado — ver [[5.17]] |
 | 16 | Env vars opcionais para integrações ainda não configuradas | Serviço externo real cujas credenciais ainda não existem, mas cujo código já deve ser escrito | `EVOLUTION_API_*`, `SMTP_*` em `src/config/index.ts` — `.optional()` em vez de `.min(1)`; funções que os usam falham com erro tipado (503) em vez de derrubar a aplicação no boot |
+| 17 | Config global (credenciais mestras) vs. credencial por-tenant | Serviço externo compartilhado por todos os tenants, mas cujo acesso (instância/token) precisa ser isolado por tenant | `config.EVOLUTION_API_URL`/`EVOLUTION_API_KEY` (mestras, usadas para chamar `/instance/create`, `/instance/connect`, `/webhook/set`, `/instance/logout` na Evolution API) permanecem em `src/config/index.ts`; a instância/token de cada tenant vivem em `TenantIntegration` (Prisma), resolvidos por `tenantId` em runtime — ver `src/lib/contact-channel.ts` (`getConnectedTenantIntegration`), `src/modules/tenant/tenant-integration.service.ts` — ver [[5.24]] |
 
 ---
 
@@ -286,6 +298,24 @@ npm start                        # node dist/server.js
 - **Contexto:** Fluxo padrão de subida local, sem Docker para a API (só o Postgres roda em container). `docker compose up -d` sobe `convoca_postgres` (porta 5432) e `convoca_evolution` (porta 8080, opcional); `npm run dev` (`tsx watch src/server.ts`) lê `.env` e sobe a API na porta 3334. Migrations aplicadas via `npm run migrate` (dev) ou já em dia se `.env` aponta para um banco que já rodou migrations antes — checar com `npx prisma migrate status`.
 - **Nota:** Parar o servidor de dev iniciado em background nem sempre funciona com `pkill`/`pgrep` (ausentes neste ambiente Windows/Git Bash) — usar `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like "*server.ts*" }` + `Stop-Process` via PowerShell para encontrar e encerrar a árvore de processos (`cmd.exe` wrapper do npm script + `node.exe` do tsx watch + `node.exe` do processo filho real).
 
+### 5.23 `atendai/evolution-api` foi removido do Docker Hub — migrado para `evoapicloud/evolution-api`
+
+- **Problema:** `docker-compose.yml` apontava para `atendai/evolution-api:v2.2.3`. Esse repositório não existe mais no Docker Hub (`docker pull` retorna `pull access denied ... repository does not exist`; a API do Hub confirma `404` para `GET /v2/repositories/atendai/evolution-api/`) — o mantenedor migrou de organização. O repositório atual é `evoapicloud/evolution-api`, com as mesmas tags (`v2.2.3` incluída) mais versões novas (`v2.3.x`, `latest`).
+- **Solução:** Trocado `image: atendai/evolution-api:v2.2.3` para `image: evoapicloud/evolution-api:v2.2.3` em `docker-compose.yml` — mesma tag, sem mudar comportamento esperado da API. Também removido o atributo `version: "3.9"` do topo do arquivo (obsoleto no Compose Spec atual, gerava warning).
+- **Efeito colateral descoberto:** a imagem rebuilada por `evoapicloud` roda `Docker/scripts/deploy_database.sh` no entrypoint, que **sempre** exige `DATABASE_PROVIDER` (`postgresql`/`mysql`) e um `DATABASE_CONNECTION_URI` válido para aplicar as migrations internas do próprio Evolution API — mesmo com `DATABASE_ENABLED=false` (que só controla se a aplicação *usa* o banco para persistir instâncias/mensagens, não se o script de deploy roda). Sem essas vars o container entra em restart loop com `Error: Database provider  invalid.`. Corrigido adicionando `DATABASE_PROVIDER: postgresql` e `DATABASE_CONNECTION_URI` (apontando para um banco `evolution_dev` dedicado no mesmo Postgres do compose, para não misturar com `convoca_dev`) ao serviço `evolution`. `CACHE_REDIS_ENABLED: "false"` + `CACHE_LOCAL_ENABLED: "true"` continuam suficientes — **Redis não é necessário**, validado subindo o container do zero e confirmando `GET /` (porta 8080) responde 200 sem qualquer menção a Redis nos logs.
+- **Provisionamento automático de bancos:** como `docker compose down -v` apaga o volume do Postgres (e portanto qualquer banco criado manualmente com `CREATE DATABASE`), criados scripts em `Convoca/api/docker/postgres-init/` (montados em `/docker-entrypoint-initdb.d` no serviço `postgres`, mecanismo nativo da imagem oficial que roda uma vez no primeiro init do volume): `01-create-evolution-db.sql` cria `evolution_dev`, `02-create-test-db.sql` cria `convoca_test` (usado pelos testes de integração, ver 5.16). Isso evita que um ambiente limpo (`docker compose down -v && up -d`) quebre silenciosamente com "database does not exist" na Evolution API ou em `npm test`. Após subir do zero, ainda é necessário rodar `npx prisma migrate deploy` (com `DATABASE_URL` de `convoca_dev`) e `DATABASE_URL=<url de convoca_test> npx prisma migrate deploy` manualmente — o Prisma CLI não lê `.env.test` automaticamente (só a aplicação faz isso via `config/index.ts`, ver 5.16).
+
+### 5.24 Spike técnico Spec 14: Evolution API suporta múltiplas instâncias nomeadas simultâneas
+
+- **Contexto:** Bloqueante da Sprint 7 — a Spec 14 (WhatsApp institucional por tenant) só é viável se a instância self-hosted da Evolution API (`evoapicloud/evolution-api:v2.2.3`, serviço `evolution` do `docker-compose.yml`) suportar múltiplas instâncias/sessões nomeadas rodando ao mesmo tempo, criadas dinamicamente via API.
+- **Resultado (spike executado manualmente contra o container local, PASSOU):** `POST /instance/create` (`{instanceName, qrcode:true, integration:"WHATSAPP-BAILEYS"}`, header `apikey` = master key) cria instâncias isoladas, cada uma com seu próprio token (campo `hash` da resposta) e `connectionStatus`. Duas instâncias criadas lado a lado coexistiram de forma independente, confirmado via `GET /instance/fetchInstances`. `POST /webhook/set/:instanceName` configura webhook **por instância** (aceita `{webhook:{enabled,url,events}}`), permitindo apontar cada instância de tenant para `POST /webhooks/whatsapp/:tenantId` (URL já com o tenantId embutido). `GET /instance/connect/:instanceName` retorna o QR code para reconexão; `GET /instance/connectionState/:instanceName` retorna `{instance:{instanceName,state}}`; `DELETE /instance/delete/:instanceName` remove a instância. Logs do container confirmaram que webhooks configurados de fato disparam (uma tentativa de entrega falhou com `AggregateError` contra uma URL de teste sem listener — comportamento esperado do spike, não um bug do Evolution API).
+- **Decisão:** modelo "1 instância nomeada por tenant" implementado exatamente como desenhado na spec, sem necessidade de redesenho (ex: fila de instâncias ou infra Evolution dedicada por tenant, cogitadas como mitigação caso o spike falhasse).
+
+### 5.25 `TenantIntegration` e migrations Prisma que colidem com colunas `Unsupported` (pgvector)
+
+- **Problema:** Rodar `npx prisma migrate dev --name add_tenant_integration` após adicionar `TenantIntegration`/`User.phone` ao schema gerou um diff que, além do `CREATE TABLE`/`ALTER TABLE` esperados, incluía `DROP INDEX "candidates_embedding_idx"` e `DROP INDEX "job_requirements_embedding_idx"` — os índices HNSW criados manualmente na migration `add_vector_embeddings` (ver 5.11). O Prisma não entende índices sobre colunas `Unsupported("vector(N)")` como parte do schema declarado, então seu diff engine os interpreta como "não deveriam existir" e tenta removê-los a cada nova migration gerada automaticamente.
+- **Solução:** Nunca rodar `prisma migrate dev` direto neste projeto quando o diff resultante tocar tabelas com colunas `vector` — sempre inspecionar o SQL gerado antes de aplicar (`--create-only`), e se houver `DROP INDEX` dos índices HNSW, descartar a migration e escrever o SQL manualmente (mesmo padrão de `add_vector_embeddings`), aplicando via `prisma migrate deploy` em vez de `migrate dev`. As migrations desta sprint (`add_user_phone`, `add_tenant_integration`) foram escritas à mão por esse motivo.
+
 ---
 
 ## 6. Status das Specs
@@ -305,6 +335,7 @@ npm start                        # node dist/server.js
 | 11 | Agendamento de entrevista | ✅ Implementada |
 | 12 | Testes automatizados | ✅ Implementada (109 testes/19 arquivos; teste adversarial de tenant em job/matching/application/interview; e2e do grafo em `graph.integration.test.ts`; gate de cobertura 80%/70% em `vitest.config.ts`) |
 | 13 | Observabilidade e deploy | 🚧 Em andamento — CI e Dockerfile de produção implementados (ver 5.18–5.21); faltam `deploy.yml`, dashboard/alertas e rollback (dependem de VPS provisionada) |
+| 14 | WhatsApp institucional multi-tenant e contato pessoal do recrutador | ✅ Implementada — spike técnico confirmou suporte a múltiplas instâncias simultâneas na Evolution API (ver 5.24); `TenantIntegration` + endpoints connect/status/disconnect + webhook de `connection.update` + `User.phone`/`GET,PATCH /users/me` |
 
 ---
 
@@ -341,6 +372,12 @@ npm start                        # node dist/server.js
 | 2026-07 | E2e do grafo LangGraph vive em `src/agent/graph.integration.test.ts`, não em diretório `test/e2e/` separado | Mesma convenção `*.integration.test.ts` ao lado do código testado já usada no resto do projeto; o teste simula o fluxo completo (ativação de vaga → matching → contato inicial → resposta do candidato via `POST /applications/:id/messages` → decisão final) com `evaluateAnswer`/`generateEmbedding` mockados |
 | 2026-07 | Dockerfile multi-stage com `node:20-slim` + `npm ci --ignore-scripts` em ambos os estágios | `--ignore-scripts` evita que o script `prepare` (husky) quebre o build em produção (ver 5.19); `node:20-slim` exige instalar `openssl` manualmente para o Prisma engine funcionar (ver 5.21) |
 | 2026-07 | Prisma CLI copiado do estágio `build` para o `runtime` via `COPY --from=build`, em vez de promovido para `dependencies` | Mantém a separação dev/prod do `package.json` intacta; o entrypoint chama o binário local (`./node_modules/.bin/prisma migrate deploy`) em vez de `npx prisma`, evitando qualquer tentativa de rede em runtime (ver 5.20) |
+| 2026-07 | `docker-compose.yml` usa `evoapicloud/evolution-api` em vez de `atendai/evolution-api` | Repositório `atendai` foi removido do Docker Hub (mudança de organização do mantenedor); `evoapicloud` publica as mesmas tags, `v2.2.3` incluída (ver 5.23) |
+| 2026-07 | Scripts de init do Postgres em `Convoca/api/docker/postgres-init/` criam `evolution_dev` e `convoca_test` automaticamente | Sem isso, `docker compose down -v && up -d` (ambiente limpo) quebra a Evolution API (exige `DATABASE_CONNECTION_URI` válido mesmo com `DATABASE_ENABLED=false`) e os testes de integração (banco `convoca_test` inexistente) — mecanismo nativo `/docker-entrypoint-initdb.d` da imagem oficial do Postgres, roda uma vez por volume (ver 5.23) |
+| 2026-07 | Nome de instância Evolution API determinístico (`convoca_${tenantId}`) | Evita colisão entre tenants sem precisar de um campo extra de "slug"; não expõe PII (nome/e-mail do tenant) no nome da instância, que aparece em logs e na API de gerenciamento da Evolution API |
+| 2026-07 | `EVOLUTION_WEBHOOK_SECRET` permanece global (não migrado para por-tenant), com cross-check do nome da instância como defesa em profundidade | A Evolution API não suporta configurar um segredo distinto por instância via `/webhook/set`; recriar esse mecanismo do zero (ex: assinatura HMAC customizada por tenant) era escopo maior que o necessário para a Sprint 7. O handler do webhook (`whatsapp.service.ts#handleConnectionUpdate`) valida que o campo `instance`/`data.instance` do payload bate com `TenantIntegration.evolutionInstanceName` do tenant da URL antes de aplicar qualquer mudança de status — desvio deliberado da redação literal da spec ("por tenant"), documentado aqui para não ser reinterpretado silenciosamente depois |
+| 2026-07 | `disconnect` chama `/instance/logout/:name` (Evolution API), não `/instance/delete/:name` | Mantém a instância/nome reutilizável para uma futura reconexão sem precisar reprovisionar (`/instance/create`) nem gerar um novo nome; alinhado ao fluxo da Tela 2 do mockup, que sempre volta a mostrar o botão "Conectar WhatsApp" via QR code, não um formulário de criação |
+| 2026-07 | `GET .../status` lê `TenantIntegration` só do banco local, nunca chama a Evolution API ao vivo | Mantém o polling do frontend barato; o webhook de `connection.update` é a única fonte que atualiza o status, então o dado fica no máximo alguns segundos desatualizado. Efeito colateral aceito: se o QR expirar sem o candidato escanear, o status pode ficar preso em `CONNECTING` — nenhum timeout/staleness automático foi implementado nesta sprint (mesmo padrão de "reconexão automática" já deixado fora de escopo na Spec 14) |
 
 ---
 

@@ -33,6 +33,8 @@ Este índice define a ordem de criação e implementação das especificações 
     spec.md
   13-observabilidade-deploy/
     spec.md
+  14-whatsapp-multi-tenant-e-contato-recrutador/
+    spec.md
 ```
 
 Cada `spec.md` segue o mesmo template interno (contexto, escopo, requisitos funcionais, regras de negócio, critérios de aceite, fora de escopo). Quando uma feature for implementada, pode-se adicionar `plan.md` (decisões técnicas) e `tasks.md` (lista granular de tarefas) na mesma pasta — mas isso é gerado **a partir** do `spec.md`, nunca antes dele.
@@ -82,6 +84,12 @@ Cada `spec.md` segue o mesmo template interno (contexto, escopo, requisitos func
 | 12  | Testes automatizados (unitários, integração, e2e do grafo) |
 | 13  | Observabilidade e deploy                                   |
 
+### Camada 7 — Extensão pós-lançamento
+
+| #   | Spec                                                                     | Por quê vem depois                                                                                                                                                     |
+| --- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 14  | WhatsApp institucional multi-tenant e contato pessoal do recrutador       | Substitui o modelo single-instance (env vars globais) da Spec 09 por credenciais por tenant; motivada pelos mockups de frontend em `Convoca/api/.stitch/admin.md`, que já assumem esse fluxo |
+
 ## Status de criação
 
 - [x] 00 — Índice
@@ -94,6 +102,7 @@ Cada `spec.md` segue o mesmo template interno (contexto, escopo, requisitos func
 - [x] 11 — Agendamento de entrevista (`spec_7.md`)
 - [x] 12 — Testes automatizados (`spec_8.md`)
 - [x] 13 — Observabilidade e deploy (`spec_9.md`) — escrita após a primeira versão do CI já estar implementada e validada; parte dos requisitos/critérios de aceite estão marcados como concluídos, o restante (Dockerfile, deploy, observabilidade) permanece pendente
+- [x] 14 — WhatsApp institucional multi-tenant e contato pessoal do recrutador (`spec_10.md`) — escrita a partir dos mockups de frontend (`Convoca/api/.stitch/admin.md`); implementação ainda pendente (ver `Convoca/sprints/sprint-07.md`)
 - [ ] 05, 06, 07, 08 — implementadas sem `spec.md` formal (ver `Convoca/sprints/` para escopo e status de cada sprint)
 
 > As specs de 05 a 08 foram implementadas diretamente a partir do escopo descrito nos sprints, sem passar por um `spec.md` formal antes do código — prática retomada a partir da Spec 09 (09/10/11/12/13 têm spec escrita seguindo a intenção original deste índice; no caso da 13, escrita em paralelo à implementação do CI em vez de estritamente antes).

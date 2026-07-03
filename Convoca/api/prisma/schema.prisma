@@ -49,6 +49,13 @@ enum InterviewStatus {
   CANCELLED
 }
 
+enum IntegrationStatus {
+  DISCONNECTED
+  CONNECTING
+  CONNECTED
+  ERROR
+}
+
 // ─── Tenant ──────────────────────────────────────────────────────────────────
 
 model Tenant {
@@ -61,6 +68,7 @@ model Tenant {
   jobs             Job[]
   jobRequirements  JobRequirement[]
   screeningQuestions ScreeningQuestion[]
+  integration      TenantIntegration?
 
   @@map("tenants")
 }
@@ -74,6 +82,7 @@ model User {
   passwordHash String   @map("password_hash")
   role         UserRole
   name         String
+  phone        String?  @map("phone")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -251,4 +260,23 @@ model InterviewSchedule {
 
   @@index([applicationId])
   @@map("interview_schedules")
+}
+
+// ─── TenantIntegration (WhatsApp institucional) ──────────────────────────────
+
+model TenantIntegration {
+  id                    String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String            @unique @map("tenant_id") @db.Uuid
+  evolutionInstanceName String            @unique @map("evolution_instance_name")
+  evolutionApiKey       String?           @map("evolution_api_key")
+  status                IntegrationStatus @default(DISCONNECTED)
+  connectedPhoneNumber  String?           @map("connected_phone_number")
+  lastConnectedAt       DateTime?         @map("last_connected_at")
+  lastErrorMessage      String?           @map("last_error_message")
+  createdAt             DateTime          @default(now()) @map("created_at")
+  updatedAt             DateTime          @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("tenant_integrations")
 }

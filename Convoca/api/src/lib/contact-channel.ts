@@ -31,6 +31,20 @@ async function logConversation(applicationId: string, channel: Channel, content:
   });
 }
 
+async function getConnectedTenantIntegration(applicationId: string) {
+  const application = await prisma.application.findUnique({
+    where: { id: applicationId },
+    include: { job: true },
+  });
+  const tenantId = application?.job.tenantId;
+  if (!tenantId) return null;
+
+  const integration = await prisma.tenantIntegration.findUnique({ where: { tenantId } });
+  if (!integration || integration.status !== "CONNECTED") return null;
+
+  return integration;
+}
+
 export const evolutionWhatsAppChannel: ContactChannel = {
   async send(applicationId, _channel, content) {
     const contact = await getPreferredContactMethod(applicationId, "WHATSAPP");
@@ -40,7 +54,9 @@ export const evolutionWhatsAppChannel: ContactChannel = {
         code: "NO_WHATSAPP_CONTACT",
       });
     }
-    if (!config.EVOLUTION_API_URL || !config.EVOLUTION_INSTANCE_NAME) {
+
+    const integration = await getConnectedTenantIntegration(applicationId);
+    if (!config.EVOLUTION_API_URL || !integration) {
       throw Object.assign(new Error("Evolution API not configured"), {
         statusCode: 503,
         code: "WHATSAPP_NOT_CONFIGURED",
@@ -48,12 +64,12 @@ export const evolutionWhatsAppChannel: ContactChannel = {
     }
 
     const response = await fetch(
-      `${config.EVOLUTION_API_URL}/message/sendText/${config.EVOLUTION_INSTANCE_NAME}`,
+      `${config.EVOLUTION_API_URL}/message/sendText/${integration.evolutionInstanceName}`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          apikey: config.EVOLUTION_API_KEY ?? "",
+          apikey: integration.evolutionApiKey ?? "",
         },
         body: JSON.stringify({ number: contact.value, text: content }),
       },

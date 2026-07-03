@@ -23,10 +23,16 @@ const envSchema = z.object({
 
   CORS_ORIGIN: z.string().default("*"),
 
-  // Evolution API (WhatsApp) — sem credenciais reais ainda, opcionais
+  // URL pública onde este servidor pode ser alcançado — usada para registrar o webhook
+  // por-instância na Evolution API (POST /webhook/set/:instanceName)
+  PUBLIC_BASE_URL: z.string().url().default("http://localhost:3334"),
+
+  // Evolution API (WhatsApp) — credenciais mestras do servidor Evolution API compartilhado.
+  // A partir da Spec 14, a instância/token por tenant vive em TenantIntegration; estas env vars
+  // seguem sendo necessárias para chamar /instance/create, /instance/connect, /webhook/set e
+  // /instance/logout na Evolution API. Sem credenciais reais ainda em todos os ambientes, opcionais.
   EVOLUTION_API_URL: z.string().url().optional(),
   EVOLUTION_API_KEY: z.string().optional(),
-  EVOLUTION_INSTANCE_NAME: z.string().optional(),
   EVOLUTION_WEBHOOK_SECRET: z.string().min(16).optional(),
 
   // SMTP (Nodemailer) — opcional, degrada com erro tratável se ausente

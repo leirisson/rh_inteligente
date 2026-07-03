@@ -34,6 +34,7 @@ const mockPrismaUser = {
   passwordHash: "$argon2id$hashed",
   role: UserRole.TENANT_ADMIN,
   name: "Admin Demo",
+  phone: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };

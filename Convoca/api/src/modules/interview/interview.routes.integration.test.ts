@@ -111,6 +111,61 @@ async function setupApplicationWithStatus(suffix: string, status: string) {
   return { tenant, job, candidate, application };
 }
 
+describe("tenant isolation", () => {
+  it("returns 404 when scheduling an interview for an application outside the tenant", async () => {
+    const { application } = await setupApplicationWithStatus("iso-sched", "APPROVED");
+    const otherTenant = await loginNewTenant("iso-sched-b");
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/applications/${application.id}/interviews`,
+      headers: makeAuthHeader(otherTenant.accessToken),
+      payload: { scheduledAt: new Date(Date.now() + 86_400_000).toISOString() },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("returns 404 when rescheduling an interview for an application outside the tenant", async () => {
+    const { tenant, application } = await setupApplicationWithStatus("iso-resched", "APPROVED");
+    await app.inject({
+      method: "POST",
+      url: `/applications/${application.id}/interviews`,
+      headers: makeAuthHeader(tenant.accessToken),
+      payload: { scheduledAt: new Date(Date.now() + 86_400_000).toISOString() },
+    });
+    const otherTenant = await loginNewTenant("iso-resched-b");
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/applications/${application.id}/interviews/reschedule`,
+      headers: makeAuthHeader(otherTenant.accessToken),
+      payload: { scheduledAt: new Date(Date.now() + 2 * 86_400_000).toISOString() },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("returns 404 when cancelling an interview for an application outside the tenant", async () => {
+    const { tenant, application } = await setupApplicationWithStatus("iso-cancel", "APPROVED");
+    await app.inject({
+      method: "POST",
+      url: `/applications/${application.id}/interviews`,
+      headers: makeAuthHeader(tenant.accessToken),
+      payload: { scheduledAt: new Date(Date.now() + 86_400_000).toISOString() },
+    });
+    const otherTenant = await loginNewTenant("iso-cancel-b");
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/applications/${application.id}/interviews/cancel`,
+      headers: makeAuthHeader(otherTenant.accessToken),
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+});
+
 describe("Interview scheduling", () => {
   it("rejects scheduling for an application that is not APPROVED", async () => {
     const { tenant, application } = await setupApplicationWithStatus(

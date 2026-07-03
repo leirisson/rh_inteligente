@@ -92,6 +92,8 @@ Cada `spec.md` segue o mesmo template interno (contexto, escopo, requisitos func
 - [x] 09 — Integração WhatsApp (`spec_5.md`)
 - [x] 10 — Fluxo de fases e classificação (`spec_6.md`)
 - [x] 11 — Agendamento de entrevista (`spec_7.md`)
-- [ ] 05, 06, 07, 08, 12, 13 — implementadas sem `spec.md` formal (ver `Convoca/sprints/` para escopo e status de cada sprint)
+- [x] 12 — Testes automatizados (`spec_8.md`)
+- [x] 13 — Observabilidade e deploy (`spec_9.md`) — escrita após a primeira versão do CI já estar implementada e validada; parte dos requisitos/critérios de aceite estão marcados como concluídos, o restante (Dockerfile, deploy, observabilidade) permanece pendente
+- [ ] 05, 06, 07, 08 — implementadas sem `spec.md` formal (ver `Convoca/sprints/` para escopo e status de cada sprint)
 
-> As specs de 05 a 08 foram implementadas diretamente a partir do escopo descrito nos sprints, sem passar por um `spec.md` formal antes do código — prática retomada a partir da Spec 09 (09/10/11 têm spec escrita antes da implementação, seguindo a intenção original deste índice).
+> As specs de 05 a 08 foram implementadas diretamente a partir do escopo descrito nos sprints, sem passar por um `spec.md` formal antes do código — prática retomada a partir da Spec 09 (09/10/11/12/13 têm spec escrita seguindo a intenção original deste índice; no caso da 13, escrita em paralelo à implementação do CI em vez de estritamente antes).

@@ -259,6 +259,11 @@ npm start                        # node dist/server.js
 - **Problema:** Diferente do `mockContactChannel` (Spec 08), que sempre "funcionava" por só gravar em `Conversation`, o `combinedContactChannel` real (Spec 09) propaga erro (`NO_WHATSAPP_CONTACT`/`NO_EMAIL_CONTACT`, ambos 422) quando o candidato não tem nenhum `ContactMethod` do canal necessário — e como `Candidate.contactMethods` é totalmente opcional no cadastro, isso quebra fluxos inteiros (ativação de vaga, resposta de triagem, agendamento de entrevista) caso um único candidato do lote esteja sem contato cadastrado.
 - **Solução:** Decisão deliberada (confirmada com o usuário): propagar o erro em vez de degradar graciosamente. Um candidato sem nenhum meio de contato é um dado de cadastro incompleto que deve ser corrigido, não silenciado — falhar alto e cedo evita que o recrutador só descubra o problema quando notar que ninguém respondeu. Efeito colateral a ter em mente: como `job.service.ts#updateJobStatus` chama `runScreeningAgent` de forma síncrona, um único candidato sem contato pode fazer a requisição `PATCH /jobs/:id/status` inteira falhar com 422, mesmo que outros candidatos do matching estivessem OK — revisável se isso se mostrar problemático em produção (ex: mover para processamento assíncrono por candidato).
 
+### 5.18 CI (GitHub Actions) sem job de lint bloqueante
+
+- **Problema:** Ao criar `.github/workflows/ci.yml`, `npm run lint` e `npm run format:check` já falhavam localmente no estado atual do repo (30 erros de ESLint pré-existentes em `auth.service.unit.test.ts` — `@typescript-eslint/unbound-method` — e em `tenant-scope.ts` — `require-await` —, mais um erro de parsing em `vitest.config.ts` por não estar incluído no `tsconfig.json`; e 15 arquivos fora do padrão do Prettier). Incluir esses steps como bloqueantes faria o primeiro CI falhar por dívida técnica não relacionada à Sprint 6.
+- **Solução:** Decisão confirmada com o usuário — job de lint/format omitido do workflow por enquanto (comentário `TODO` em `ci.yml` lista os erros pendentes). O workflow (`.github/workflows/ci.yml`, na raiz do monorepo, com `defaults.run.working-directory: Convoca/api` e `paths` filtrando por esse diretório) roda um único job `test`: sobe `pgvector/pgvector:pg16` como service container (usuário/senha/db iguais ao `docker-compose.yml` local, mas banco `convoca_test` em vez de `convoca_dev`), `npm ci` → `prisma generate` → `prisma migrate deploy` (com `DATABASE_URL` apontando pro service container) → `npm run build` → `npm run test:coverage`. `NODE_ENV=test` faz `src/config/index.ts` carregar `.env.test` (já commitado, com chaves fake de LLM — ver 5.16), então nenhum secret do GitHub é necessário ainda. Validado rodando a sequência completa localmente antes de commitar (19 arquivos de teste, 104 testes, todos passando). Reativar o job de lint quando os erros acima forem corrigidos.
+
 ---
 
 ## 6. Status das Specs
@@ -277,7 +282,7 @@ npm start                        # node dist/server.js
 | 10 | Fluxo de fases e classificação | ✅ Implementada (notificação de líder de setor simplificada para todos os recrutadores/admins — ver spec_6.md) |
 | 11 | Agendamento de entrevista | ✅ Implementada |
 | 12 | Testes automatizados | ⏳ Aguarda 11 |
-| 13 | Observabilidade e deploy | ⏳ Aguarda 12 |
+| 13 | Observabilidade e deploy | 🚧 Em andamento — CI (GitHub Actions) implementado, ver 5.18 |
 
 ---
 
@@ -309,6 +314,7 @@ npm start                        # node dist/server.js
 | 2026-07 | `ContactChannel` real propaga erro (não degrada) quando candidato não tem o meio de contato necessário | Decisão confirmada com o usuário: falhar alto evita que cadastros incompletos passem despercebidos; aceita o efeito colateral de um único candidato sem contato poder derrubar a ativação síncrona de uma vaga inteira (ver 5.17) |
 | 2026-07 | `EVOLUTION_API_*`/`SMTP_*` como env vars opcionais, com erro tipado em runtime em vez de fail-fast no boot | Diferente de `OPENROUTER_API_KEY`/`OPENAI_API_KEY` (sempre necessárias), essas integrações não têm credenciais reais disponíveis ainda — bloquear `npm run dev`/testes seria pior que degradar graciosamente até a Sprint de integração real |
 | 2026-07 | `src/config/index.ts` carrega `.env.test` quando `NODE_ENV=test`, em vez de depender de `envFiles` do Vitest | `envFiles` do Vitest 4 não popula `process.env`; bug pré-existente fazia todo teste de integração rodar (e apagar dados) no banco `convoca_dev` em vez de `convoca_test` — corrigido na Sprint 5 (ver 5.16) |
+| 2026-07 | CI (`.github/workflows/ci.yml`) sem job de lint/format bloqueante | `npm run lint`/`format:check` já falhavam no repo antes do CI existir (dívida técnica pré-existente); bloquear o primeiro CI por isso adiaria a Sprint 6 sem relação com o que estava sendo entregue — reativar quando os erros forem corrigidos (ver 5.18) |
 
 ---
 

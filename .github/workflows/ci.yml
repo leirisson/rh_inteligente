@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Convoca/api/**"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "Convoca/api/**"
+      - ".github/workflows/ci.yml"
+
+defaults:
+  run:
+    working-directory: Convoca/api
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  # TODO: reativar um job de lint/format quando os erros pré-existentes de
+  # `npm run lint` (unbound-method em auth.service.unit.test.ts,
+  # require-await em tenant-scope.ts, tsconfig do vitest.config.ts) e de
+  # `npm run format:check` (15 arquivos desformatados) forem corrigidos.
+  test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: convoca
+          POSTGRES_PASSWORD: convoca_dev
+          POSTGRES_DB: convoca_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U convoca -d convoca_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: Convoca/api/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prisma generate
+        run: npm run generate
+
+      - name: Run migrations against convoca_test
+        run: npm run migrate:deploy
+        env:
+          DATABASE_URL: postgresql://convoca:convoca_dev@localhost:5432/convoca_test
+
+      - name: Build
+        run: npm run build
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+        env:
+          NODE_ENV: test
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: Convoca/api/coverage
+          retention-days: 7
+          if-no-files-found: ignore

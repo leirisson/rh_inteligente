@@ -259,6 +259,21 @@ npm start                        # node dist/server.js
 - **Problema:** Diferente do `mockContactChannel` (Spec 08), que sempre "funcionava" por só gravar em `Conversation`, o `combinedContactChannel` real (Spec 09) propaga erro (`NO_WHATSAPP_CONTACT`/`NO_EMAIL_CONTACT`, ambos 422) quando o candidato não tem nenhum `ContactMethod` do canal necessário — e como `Candidate.contactMethods` é totalmente opcional no cadastro, isso quebra fluxos inteiros (ativação de vaga, resposta de triagem, agendamento de entrevista) caso um único candidato do lote esteja sem contato cadastrado.
 - **Solução:** Decisão deliberada (confirmada com o usuário): propagar o erro em vez de degradar graciosamente. Um candidato sem nenhum meio de contato é um dado de cadastro incompleto que deve ser corrigido, não silenciado — falhar alto e cedo evita que o recrutador só descubra o problema quando notar que ninguém respondeu. Efeito colateral a ter em mente: como `job.service.ts#updateJobStatus` chama `runScreeningAgent` de forma síncrona, um único candidato sem contato pode fazer a requisição `PATCH /jobs/:id/status` inteira falhar com 422, mesmo que outros candidatos do matching estivessem OK — revisável se isso se mostrar problemático em produção (ex: mover para processamento assíncrono por candidato).
 
+### 5.19 Dockerfile: `npm ci` falha em produção por causa do script `prepare` (husky)
+
+- **Problema:** `package.json` declara `"prepare": "husky"`, que roda automaticamente em todo `npm install`/`npm ci` (inclusive `--omit=dev`). No estágio `runtime` da imagem (sem devDependencies, sem `.git`), o binário `husky` não existe e o comando falha com `sh: 1: husky: not found`, exit code 127 — quebra o `docker build` inteiro. No estágio `build`, o mesmo comando "funciona" silenciosamente porque `.git` existe no contexto, mas `husky` decide não fazer nada fora de um repo git — não deveria ser exigido em uma imagem de produção de qualquer forma.
+- **Solução:** `npm ci --ignore-scripts` em ambos os estágios do `Dockerfile` (`build` e `runtime`). Hooks de git não têm nenhuma utilidade dentro de uma imagem Docker.
+
+### 5.20 Prisma CLI precisa estar disponível em runtime, mas é `devDependency`
+
+- **Problema:** O entrypoint do container precisa rodar `prisma migrate deploy` antes de subir o servidor (requisito da Spec 13), mas o pacote `prisma` (CLI) está em `devDependencies` — `npm ci --omit=dev` no estágio `runtime` não o instala, e `npx prisma` tentaria baixar da rede em runtime (indesejável e pode falhar sem acesso à internet do registry npm).
+- **Solução:** Copiar `node_modules/prisma`, `node_modules/.bin/prisma`, `node_modules/@prisma` e `node_modules/.prisma` do estágio `build` para o `runtime` via `COPY --from=build`, e chamar o binário local (`./node_modules/.bin/prisma migrate deploy`) em `docker-entrypoint.sh` em vez de `npx prisma`. Não promover `prisma` para `dependencies` — o objetivo é manter a separação dev/prod do `package.json`, só que suprida via layer do multi-stage build.
+
+### 5.21 `node:20-slim` sem OpenSSL quebra o Prisma engine
+
+- **Problema:** `prisma generate`/`migrate deploy` na imagem `node:20-slim` emite `Prisma failed to detect the libssl/openssl version to use, and may not work as expected` — a imagem `slim` do Debian não vem com OpenSSL instalado, e o Prisma Client usa um binary engine linkado contra ele.
+- **Solução:** `RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*` em ambos os estágios do `Dockerfile` (build precisa para `prisma generate`; runtime precisa para o Query Engine em runtime). Validado rodando `docker build` + `docker run` de ponta a ponta contra um Postgres+pgvector standalone (fora do `docker-compose.yml` de dev): migrations aplicadas automaticamente, servidor sobe, `POST /tenants` retorna 201 com JWT válido.
+
 ### 5.18 CI (GitHub Actions) sem job de lint bloqueante
 
 - **Problema:** Ao criar `.github/workflows/ci.yml`, `npm run lint` e `npm run format:check` já falhavam localmente no estado atual do repo (30 erros de ESLint pré-existentes em `auth.service.unit.test.ts` — `@typescript-eslint/unbound-method` — e em `tenant-scope.ts` — `require-await` —, mais um erro de parsing em `vitest.config.ts` por não estar incluído no `tsconfig.json`; e 15 arquivos fora do padrão do Prettier). Incluir esses steps como bloqueantes faria o primeiro CI falhar por dívida técnica não relacionada à Sprint 6.
@@ -282,7 +297,7 @@ npm start                        # node dist/server.js
 | 10 | Fluxo de fases e classificação | ✅ Implementada (notificação de líder de setor simplificada para todos os recrutadores/admins — ver spec_6.md) |
 | 11 | Agendamento de entrevista | ✅ Implementada |
 | 12 | Testes automatizados | ✅ Implementada (109 testes/19 arquivos; teste adversarial de tenant em job/matching/application/interview; e2e do grafo em `graph.integration.test.ts`; gate de cobertura 80%/70% em `vitest.config.ts`) |
-| 13 | Observabilidade e deploy | 🚧 Em andamento — CI (GitHub Actions) implementado, ver 5.18 |
+| 13 | Observabilidade e deploy | 🚧 Em andamento — CI e Dockerfile de produção implementados (ver 5.18–5.21); faltam `deploy.yml`, dashboard/alertas e rollback (dependem de VPS provisionada) |
 
 ---
 
@@ -317,6 +332,8 @@ npm start                        # node dist/server.js
 | 2026-07 | CI (`.github/workflows/ci.yml`) sem job de lint/format bloqueante | `npm run lint`/`format:check` já falhavam no repo antes do CI existir (dívida técnica pré-existente); bloquear o primeiro CI por isso adiaria a Sprint 6 sem relação com o que estava sendo entregue — reativar quando os erros forem corrigidos (ver 5.18) |
 | 2026-07 | Gate de cobertura mínima em `vitest.config.ts` (`coverage.thresholds`): 80% statements/lines, 70% branches/functions | Calibrado no valor observado ao rodar `test:coverage` na Sprint 6 (86%/88.33%/72.72%/85.62%), com margem pequena para não travar PRs por flutuação; falha o comando (e portanto o CI) se a cobertura cair abaixo disso |
 | 2026-07 | E2e do grafo LangGraph vive em `src/agent/graph.integration.test.ts`, não em diretório `test/e2e/` separado | Mesma convenção `*.integration.test.ts` ao lado do código testado já usada no resto do projeto; o teste simula o fluxo completo (ativação de vaga → matching → contato inicial → resposta do candidato via `POST /applications/:id/messages` → decisão final) com `evaluateAnswer`/`generateEmbedding` mockados |
+| 2026-07 | Dockerfile multi-stage com `node:20-slim` + `npm ci --ignore-scripts` em ambos os estágios | `--ignore-scripts` evita que o script `prepare` (husky) quebre o build em produção (ver 5.19); `node:20-slim` exige instalar `openssl` manualmente para o Prisma engine funcionar (ver 5.21) |
+| 2026-07 | Prisma CLI copiado do estágio `build` para o `runtime` via `COPY --from=build`, em vez de promovido para `dependencies` | Mantém a separação dev/prod do `package.json` intacta; o entrypoint chama o binário local (`./node_modules/.bin/prisma migrate deploy`) em vez de `npx prisma`, evitando qualquer tentativa de rede em runtime (ver 5.20) |
 
 ---
 

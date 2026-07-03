@@ -57,7 +57,7 @@ O projeto roda hoje apenas localmente (`npm run dev` + `docker-compose.yml` com 
 - [x] GitHub Actions roda testes e build em todo PR (`.github/workflows/ci.yml`, job `test`)
 - [x] `prisma migrate deploy` é executado automaticamente no pipeline de CI, contra banco real
 - [ ] Job de lint/format reativado no CI (bloqueado por dívida técnica pré-existente — ver 5.18)
-- [ ] `docker build` gera imagem funcional da API (Dockerfile multi-stage)
+- [x] `docker build` gera imagem funcional da API (Dockerfile multi-stage)
 - [ ] `deploy.yml` builda, publica e aplica a imagem em merge na `main`
 - [ ] Dashboard com métricas de latência e taxa de erro acessível
 - [ ] Alerta configurado para taxa de erro acima do threshold

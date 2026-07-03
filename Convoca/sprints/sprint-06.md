@@ -37,7 +37,7 @@ O projeto já tinha 104 testes em 19 arquivos (unit + integração) acumulados d
 - [x] GitHub Actions roda testes e build em todo PR (`.github/workflows/ci.yml`, job `test`)
 - [x] `prisma migrate deploy` é executado automaticamente no pipeline de CI
 - [ ] Job de lint/format reativado no CI (bloqueado por dívida técnica pré-existente — ver `CLAUDE.md` raiz, 5.18)
-- [ ] `docker build` gera imagem funcional da API (Dockerfile multi-stage)
+- [x] `docker build` gera imagem funcional da API (Dockerfile multi-stage — `Convoca/api/Dockerfile` + `docker-entrypoint.sh`); validado com `docker build` + `docker run` de ponta a ponta contra um Postgres+pgvector standalone (fora do `docker-compose.yml` de dev): `prisma migrate deploy` roda automaticamente no entrypoint, servidor sobe, `POST /tenants` retorna 201. Ver `CLAUDE.md` raiz 5.19–5.21.
 - [ ] `deploy.yml` builda, publica e aplica a imagem em merge na `main`
 - [ ] Dashboard com métricas de latência e taxa de erro acessível
 - [ ] Alerta configurado para erro rate > threshold
@@ -56,17 +56,17 @@ rh_inteligente/
 ├── Convoca/api/specs/
 │   ├── spec_8.md                   ← Spec 12 (Testes Automatizados)
 │   └── spec_9.md                   ← Spec 13 (Observabilidade e Deploy)
-└── Convoca/api/src/
-    ├── agent/graph.integration.test.ts               ← e2e completo do grafo (matching → contato → respostas → decisão)
-    └── modules/interview/interview.routes.integration.test.ts  ← + testes adversariais de tenant
+├── Convoca/api/src/
+│   ├── agent/graph.integration.test.ts               ← e2e completo do grafo (matching → contato → respostas → decisão)
+│   └── modules/interview/interview.routes.integration.test.ts  ← + testes adversariais de tenant
+├── Convoca/api/Dockerfile           ← multi-stage: build (Node 20 + openssl) / runtime (Node 20 slim + openssl)
+├── Convoca/api/docker-entrypoint.sh ← roda `prisma migrate deploy` antes de `node dist/server.js`
+└── Convoca/api/.dockerignore
 ```
 
 ## Arquivos ainda a criar
 
 ```text
-Convoca/api/
-└── Dockerfile                      ← multi-stage, pendente
-
 rh_inteligente/.github/workflows/
 └── deploy.yml                      ← build + push + deploy em merge na main, pendente
 ```

@@ -17,6 +17,12 @@ export default defineConfig({
       reporter: ["text", "lcov"],
       include: ["src/**/*.ts"],
       exclude: ["src/server.ts", "src/test/**", "src/**/*.d.ts"],
+      thresholds: {
+        statements: 80,
+        lines: 80,
+        branches: 70,
+        functions: 70,
+      },
     },
     // *.unit.test.ts  — no DB needed (Prisma mocked)
     // *.integration.test.ts — needs convoca_test DB running

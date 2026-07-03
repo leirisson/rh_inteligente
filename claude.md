@@ -281,7 +281,7 @@ npm start                        # node dist/server.js
 | 09 | Integração WhatsApp (Evolution API) | ✅ Implementada (sem credenciais reais ainda — env vars opcionais, ver padrão 16 na seção 4) |
 | 10 | Fluxo de fases e classificação | ✅ Implementada (notificação de líder de setor simplificada para todos os recrutadores/admins — ver spec_6.md) |
 | 11 | Agendamento de entrevista | ✅ Implementada |
-| 12 | Testes automatizados | ⏳ Aguarda 11 |
+| 12 | Testes automatizados | ✅ Implementada (109 testes/19 arquivos; teste adversarial de tenant em job/matching/application/interview; e2e do grafo em `graph.integration.test.ts`; gate de cobertura 80%/70% em `vitest.config.ts`) |
 | 13 | Observabilidade e deploy | 🚧 Em andamento — CI (GitHub Actions) implementado, ver 5.18 |
 
 ---
@@ -315,6 +315,8 @@ npm start                        # node dist/server.js
 | 2026-07 | `EVOLUTION_API_*`/`SMTP_*` como env vars opcionais, com erro tipado em runtime em vez de fail-fast no boot | Diferente de `OPENROUTER_API_KEY`/`OPENAI_API_KEY` (sempre necessárias), essas integrações não têm credenciais reais disponíveis ainda — bloquear `npm run dev`/testes seria pior que degradar graciosamente até a Sprint de integração real |
 | 2026-07 | `src/config/index.ts` carrega `.env.test` quando `NODE_ENV=test`, em vez de depender de `envFiles` do Vitest | `envFiles` do Vitest 4 não popula `process.env`; bug pré-existente fazia todo teste de integração rodar (e apagar dados) no banco `convoca_dev` em vez de `convoca_test` — corrigido na Sprint 5 (ver 5.16) |
 | 2026-07 | CI (`.github/workflows/ci.yml`) sem job de lint/format bloqueante | `npm run lint`/`format:check` já falhavam no repo antes do CI existir (dívida técnica pré-existente); bloquear o primeiro CI por isso adiaria a Sprint 6 sem relação com o que estava sendo entregue — reativar quando os erros forem corrigidos (ver 5.18) |
+| 2026-07 | Gate de cobertura mínima em `vitest.config.ts` (`coverage.thresholds`): 80% statements/lines, 70% branches/functions | Calibrado no valor observado ao rodar `test:coverage` na Sprint 6 (86%/88.33%/72.72%/85.62%), com margem pequena para não travar PRs por flutuação; falha o comando (e portanto o CI) se a cobertura cair abaixo disso |
+| 2026-07 | E2e do grafo LangGraph vive em `src/agent/graph.integration.test.ts`, não em diretório `test/e2e/` separado | Mesma convenção `*.integration.test.ts` ao lado do código testado já usada no resto do projeto; o teste simula o fluxo completo (ativação de vaga → matching → contato inicial → resposta do candidato via `POST /applications/:id/messages` → decisão final) com `evaluateAnswer`/`generateEmbedding` mockados |
 
 ---
 

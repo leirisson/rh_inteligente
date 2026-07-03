@@ -34,12 +34,12 @@ O projeto já acumula testes unitários e de integração escritos incrementalme
 
 ## Critérios de aceite
 
-- [ ] `npm test` roda toda a suíte sem dependências externas além do Docker (Postgres)
-- [ ] Testes de integração usam banco real (`convoca_test`), não mock do Prisma
-- [ ] Existe teste adversarial de tenant: usuário do tenant A recebe `404` ao tentar acessar job/application/match de outro tenant, em pelo menos `job`, `matching`, `application` e `interview`
-- [ ] Existe teste e2e do grafo LangGraph que simula uma triagem completa e verifica o estado final da `Application`
-- [ ] `npm run test:coverage` reporta ≥80% statements/lines e ≥70% branches
-- [ ] CI (Spec 13) roda essa suíte e falha o PR se cobertura ficar abaixo do threshold
+- [x] `npm test` roda toda a suíte sem dependências externas além do Docker (Postgres)
+- [x] Testes de integração usam banco real (`convoca_test`), não mock do Prisma
+- [x] Existe teste adversarial de tenant: usuário do tenant A recebe `404` ao tentar acessar job/application/match de outro tenant, em pelo menos `job`, `matching`, `application` e `interview`
+- [x] Existe teste e2e do grafo LangGraph que simula uma triagem completa e verifica o estado final da `Application`
+- [x] `npm run test:coverage` reporta ≥80% statements/lines e ≥70% branches (medido: 86%/88.33%/72.72%)
+- [x] CI (Spec 13) roda essa suíte e falha o PR se cobertura ficar abaixo do threshold (`coverage.thresholds` em `vitest.config.ts`)
 
 ## Fora de escopo
 

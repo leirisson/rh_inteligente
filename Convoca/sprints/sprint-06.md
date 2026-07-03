@@ -16,15 +16,15 @@ Garantir confiabilidade com cobertura de testes e colocar o sistema em produçã
 
 > Ver `api/specs/spec_8.md` para o texto completo da spec.
 
-O projeto já tinha 104 testes em 19 arquivos (unit + integração) acumulados desde a Spec 03. A Spec 12 formaliza esse padrão e fecha as lacunas: teste adversarial de tenant e e2e do grafo LangGraph ainda não escritos.
+O projeto já tinha 104 testes em 19 arquivos (unit + integração) acumulados desde a Spec 03. A Spec 12 formaliza esse padrão e fecha as lacunas que faltavam: teste adversarial de tenant (interview) e e2e completo do grafo LangGraph (matching → contato → respostas → decisão). Ao final da sprint: 109 testes em 19 arquivos, 86%/72.72% de cobertura statements/branches, gate de cobertura ativo em `vitest.config.ts`.
 
 ### Critérios de aceite — Spec 12
 
 - [x] `npm test` roda toda a suíte sem dependências externas além do Docker
 - [x] Testes de integração usam banco real (não mock do Prisma)
 - [x] Teste adversarial de tenant: usuário A não consegue acessar dados do tenant B (job, matching e application já cobertos; interview cobrido nesta sprint — `interview.routes.integration.test.ts`, 3 novos testes: schedule/reschedule/cancel retornam 404 para tenant errado)
-- [ ] E2e do grafo: simula triagem completa e verifica estado final do Application
-- [x] CI roda a suíte em todo push/PR (job `test` do CI, ver Spec 13) — falta o gate de cobertura mínima (80%/70%)
+- [x] E2e do grafo: simula triagem completa e verifica estado final do Application (`src/agent/graph.integration.test.ts` — estendido nesta sprint com os cenários de aprovação e rejeição via `POST /applications/:id/messages` após a ativação da vaga disparar o grafo)
+- [x] CI roda a suíte em todo push/PR (job `test` do CI, ver Spec 13) — gate de cobertura mínima (80% statements/lines, 70% branches/functions) ativado em `vitest.config.ts` (`coverage.thresholds`); cobertura atual: 86%/88.33%/72.72%/85.62%
 
 ---
 
@@ -56,14 +56,16 @@ rh_inteligente/
 ├── Convoca/api/specs/
 │   ├── spec_8.md                   ← Spec 12 (Testes Automatizados)
 │   └── spec_9.md                   ← Spec 13 (Observabilidade e Deploy)
+└── Convoca/api/src/
+    ├── agent/graph.integration.test.ts               ← e2e completo do grafo (matching → contato → respostas → decisão)
+    └── modules/interview/interview.routes.integration.test.ts  ← + testes adversariais de tenant
 ```
 
 ## Arquivos ainda a criar
 
 ```text
 Convoca/api/
-├── Dockerfile                      ← multi-stage, pendente
-└── src/agent/graph.integration.test.ts  ← e2e do grafo LangGraph, pendente
+└── Dockerfile                      ← multi-stage, pendente
 
 rh_inteligente/.github/workflows/
 └── deploy.yml                      ← build + push + deploy em merge na main, pendente

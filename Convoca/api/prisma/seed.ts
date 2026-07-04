@@ -12,11 +12,19 @@ async function main() {
   });
 
   // Users
+  const superAdminHash = await argon2.hash("SuperAdmin@1234");
   const adminHash = await argon2.hash("Admin@1234");
   const recruiterHash = await argon2.hash("Recruiter@1234");
 
   await prisma.user.createMany({
     data: [
+      {
+        tenantId: tenant.id,
+        email: "superadmin@convoca.com",
+        passwordHash: superAdminHash,
+        role: UserRole.SUPER_ADMIN,
+        name: "Super Admin",
+      },
       {
         tenantId: tenant.id,
         email: "admin@demo.com",
@@ -76,10 +84,12 @@ async function main() {
   });
 
   // Candidate
+  const candidateHash = await argon2.hash("Candidate@1234");
   const candidate = await prisma.candidate.create({
     data: {
       name: "João Silva",
       email: "joao.silva@email.com",
+      passwordHash: candidateHash,
       resumeText: "Desenvolvedor backend com 4 anos de experiência em Node.js, TypeScript e PostgreSQL.",
       contactMethods: {
         create: [
@@ -104,7 +114,7 @@ async function main() {
 
   console.log("Seed completo:");
   console.log(`  Tenant: ${tenant.name} (${tenant.id})`);
-  console.log(`  Users: admin@demo.com / Recruiter: recruiter@demo.com`);
+  console.log(`  Users: superadmin@convoca.com / admin@demo.com / recruiter@demo.com`);
   console.log(`  Jobs: 1 ACTIVE + 1 DRAFT`);
   console.log(`  Candidate: ${candidate.name}`);
 }

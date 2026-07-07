@@ -1,0 +1,23 @@
+{
+  "name": "convoca-remotion",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "remotion studio",
+    "build": "remotion render",
+    "still": "remotion still",
+    "upgrade": "remotion upgrade",
+    "lint": "tsc -b"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.486",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.486"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.1",
+    "@types/react-dom": "18.3.1",
+    "typescript": "5.6.3"
+  }
+}

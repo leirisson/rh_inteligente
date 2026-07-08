@@ -4,13 +4,29 @@
 > usuário de empresa autenticado pode **ler** o status do WhatsApp institucional (Tela 2) e
 > editar o próprio telefone pessoal (Tela 2b). Ver [design-system.md](design-system.md).
 >
-> **Status de implementação (Spec 14 / Sprint 7 — ✅ implementada):** as Telas 1 e 3 são
-> aspiracionais (nenhum endpoint de dados gerais do tenant nem de SMTP existe ainda). A **Tela
-> 2 e a Tela 2b refletem um backend real e já implementado** — os detalhes abaixo (estados,
-> permissões, textos) foram atualizados a partir do código em
-> `src/modules/tenant/tenant-integration.{routes,service,schema}.ts` e `src/modules/user/`, não
-> são mais especulação. **Telas 4 e 5 continuam 100% aspiracionais** — não existe nenhum
-> endpoint de convite/gestão de equipe nem de sessões/segurança; ver nota em cada uma.
+> **Status de implementação:** as Telas 1 e 3 são aspiracionais (nenhum endpoint de dados
+> gerais do tenant nem de SMTP existe ainda). As **Telas 2, 2b e 4 refletem um backend real e
+> já implementado** — os detalhes abaixo (estados, permissões, textos) foram atualizados a
+> partir do código em `src/modules/tenant/tenant-integration.{routes,service,schema}.ts`,
+> `src/modules/user/` e `src/modules/team/`, não são mais especulação. **Tela 5 continua 100%
+> aspiracional** — não existe endpoint de troca de senha nem de sessões/segurança.
+
+## Contrato real da API (Tela 4)
+
+- `GET /tenants/:id/users` — **apenas `TENANT_ADMIN`**. Lista os `User` do tenant
+  (`id, name, email, role, phone, createdAt`), ordenados por `createdAt`. Não há campo de
+  "último acesso" no schema — omitido da resposta (diferente do mockup original abaixo).
+- `POST /tenants/:id/users` — **apenas `TENANT_ADMIN`**. Cria um novo `User` no tenant com
+  `{ name, email, password, role }` — a senha é definida diretamente pelo admin no modal de
+  convite (sem token/e-mail de ativação; consistente com o padrão de criação do primeiro
+  admin em `POST /tenants`). `email` é único globalmente (não só por tenant); conflito
+  retorna 409 `EMAIL_TAKEN`.
+- `PATCH /tenants/:id/users/:userId/role` — **apenas `TENANT_ADMIN`**. Altera o `role` de um
+  membro existente do próprio tenant (`role` como dropdown por linha na tabela, em vez do menu
+  ⋮ "Alterar papel" do mockup original). Membro de outro tenant retorna 404.
+- **Fora de escopo por enquanto:** remover/desativar acesso de um membro — decisão explícita
+  de manter o primeiro ciclo enxuto (listar + convidar + alterar papel); revisável quando
+  houver demanda.
 
 ## Modelo de WhatsApp com dois níveis
 
@@ -205,9 +221,10 @@ espelhando o mesmo padrão visual da tela de WhatsApp para consistência, mas de
 
 ## 4. Equipe — Usuários e Papéis
 
-> ⚠️ Aspiracional — não existe nenhum endpoint de convite, listagem de usuários do tenant ou
-> alteração de papel. `User` é criado apenas via `POST /tenants` (onboarding, cria o primeiro
-> `TENANT_ADMIN`) — não há como adicionar um segundo usuário à empresa pela API hoje.
+> ✅ Backend implementado — ver "Contrato real da API (Tela 4)" acima. Diferenças em relação
+> ao mockup original abaixo: sem coluna de "último acesso" (não existe esse dado no schema),
+> "Alterar papel" é um dropdown inline por linha em vez de um menu ⋮, e não há ação de
+> "Remover acesso" nesta primeira versão.
 
 ```
 Tela de gestão de usuários da empresa dentro do painel administrativo, para o TENANT_ADMIN
@@ -225,9 +242,9 @@ controlar quem tem acesso e com qual papel (RBAC).
 2. **Hero/Resumo:** Nenhum.
 3. **Primary Content Area:** Tabela de usuários do tenant com colunas: nome, e-mail, badge de
    papel (SUPER_ADMIN roxo / TENANT_ADMIN indigo / RECRUITER azul / DEPARTMENT_LEAD slate),
-   telefone pessoal (se cadastrado, ver Tela 2b), data de último acesso, e menu de ações (⋮)
-   com "Alterar papel" e "Remover acesso". Modal de convite (ao clicar em "+ Convidar membro")
-   com campos nome, e-mail e dropdown de papel.
+   telefone pessoal (se cadastrado, ver Tela 2b), e dropdown inline para alterar o papel.
+   Modal de convite (ao clicar em "+ Convidar membro") com campos nome, e-mail, senha
+   provisória e dropdown de papel.
 4. **Footer:** Nenhum.
 ```
 

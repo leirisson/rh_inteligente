@@ -9,6 +9,7 @@ import { tenantScopePlugin } from "./plugins/tenant-scope";
 import { authRoutes } from "./modules/auth/auth.routes";
 import { tenantRoutes } from "./modules/tenant/tenant.routes";
 import { tenantIntegrationRoutes } from "./modules/tenant/tenant-integration.routes";
+import { teamRoutes } from "./modules/team/team.routes";
 import { jobRoutes } from "./modules/job/job.routes";
 import { jobRequirementRoutes } from "./modules/job-requirement/job-requirement.routes";
 import { screeningQuestionRoutes } from "./modules/screening-question/screening-question.routes";
@@ -44,6 +45,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(authRoutes, { prefix: "/auth" });
   await app.register(tenantRoutes, { prefix: "/tenants" });
   await app.register(tenantIntegrationRoutes, { prefix: "/tenants" });
+  await app.register(teamRoutes, { prefix: "/tenants" });
   await app.register(jobRoutes, { prefix: "/jobs" });
   await app.register(jobRequirementRoutes, { prefix: "/jobs" });
   await app.register(screeningQuestionRoutes, { prefix: "/jobs" });

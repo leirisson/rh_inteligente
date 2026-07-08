@@ -68,6 +68,23 @@ export interface UserProfile {
   phone: string | null;
 }
 
+// ---- team ----
+export interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  phone: string | null;
+  createdAt: string;
+}
+
+export interface CreateTeamMemberBody {
+  name: string;
+  email: string;
+  password: string;
+  role: UserRole;
+}
+
 // ---- job ----
 export interface Job {
   id: string;

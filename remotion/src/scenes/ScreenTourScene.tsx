@@ -12,10 +12,7 @@ import { theme, fontFamily } from "../theme";
 export const ScreenTourScene: React.FC<{
   image: string;
   caption: string;
-  focusX?: number;
-  focusY?: number;
-  focusWidth?: number;
-}> = ({ image, caption, focusX, focusY, focusWidth }) => {
+}> = ({ image, caption }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
@@ -39,21 +36,14 @@ export const ScreenTourScene: React.FC<{
         justifyContent: "center",
       }}
     >
-      <div style={{ position: "absolute", top: 260 }}>
-        <BrowserFrame
-          src={staticFile(image)}
-          frame={frame}
-          fps={fps}
-          focusX={focusX}
-          focusY={focusY}
-          focusWidth={focusWidth}
-        />
+      <div style={{ position: "absolute", top: 36 }}>
+        <BrowserFrame src={staticFile(image)} frame={frame} fps={fps} />
       </div>
 
       <div
         style={{
           position: "absolute",
-          bottom: 220,
+          bottom: 26,
           left: 0,
           right: 0,
           display: "flex",
@@ -69,14 +59,14 @@ export const ScreenTourScene: React.FC<{
             backgroundColor: theme.card,
             border: `1px solid #2A3150`,
             borderRadius: 16,
-            padding: "20px 32px",
+            padding: "16px 32px",
           }}
         >
           <span
             style={{
               color: theme.text,
               fontFamily,
-              fontSize: 32,
+              fontSize: 30,
               fontWeight: 800,
             }}
           >

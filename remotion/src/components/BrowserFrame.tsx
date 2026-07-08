@@ -1,23 +1,18 @@
 import { Img, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { theme } from "../theme";
 
-const VIEWPORT_W = 1000;
-const VIEWPORT_H = 720;
+const VIEWPORT_W = 1360;
 const SOURCE_W = 2880;
+const SOURCE_H = 1800;
+const VIEWPORT_H = VIEWPORT_W * (SOURCE_H / SOURCE_W);
 
 export const BrowserFrame: React.FC<{
   src: string;
   frame: number;
   fps: number;
-  /** Left edge of the focus rectangle, in source image pixels. */
-  focusX?: number;
-  /** Top edge of the focus rectangle, in source image pixels. */
-  focusY?: number;
-  /** Width of the focus rectangle, in source image pixels — determines zoom level. */
-  focusWidth?: number;
-  /** Slow drift applied to focusWidth over the scene, in source pixels (negative = zoom in). */
-  driftWidth?: number;
-}> = ({ src, frame, fps, focusX = 0, focusY = 0, focusWidth = SOURCE_W, driftWidth = -120 }) => {
+  /** Slow zoom-in applied over the scene, as a scale multiplier added by the end. */
+  zoomAmount?: number;
+}> = ({ src, frame, fps, zoomAmount = 0.04 }) => {
   const entryScale = spring({
     frame,
     fps,
@@ -29,15 +24,9 @@ export const BrowserFrame: React.FC<{
     extrapolateRight: "clamp",
   });
 
-  const animatedFocusWidth = interpolate(frame, [0, 900], [focusWidth, focusWidth + driftWidth], {
+  const kenBurns = interpolate(frame, [0, 900], [1, 1 + zoomAmount], {
     extrapolateRight: "clamp",
   });
-
-  // Scale so that `animatedFocusWidth` source pixels fill VIEWPORT_W.
-  const scale = VIEWPORT_W / animatedFocusWidth;
-  const renderedImgWidth = SOURCE_W * scale;
-  const offsetX = -focusX * scale;
-  const offsetY = -focusY * scale;
 
   return (
     <div
@@ -91,9 +80,12 @@ export const BrowserFrame: React.FC<{
           src={src}
           style={{
             position: "absolute",
-            top: offsetY,
-            left: offsetX,
-            width: renderedImgWidth,
+            top: 0,
+            left: 0,
+            width: VIEWPORT_W,
+            height: VIEWPORT_H,
+            transform: `scale(${kenBurns})`,
+            transformOrigin: "center center",
           }}
         />
       </div>

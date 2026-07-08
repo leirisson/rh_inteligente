@@ -13,6 +13,8 @@ export interface InterviewListItem {
   jobTitle: string;
   interviewer: string;
   place: string;
+  /** ISO date-time — fonte única de verdade para agrupamento por dia no calendário. */
+  date: string;
   month: string;
   day: string;
   hour: string;
@@ -27,6 +29,7 @@ export async function getMockInterviews(): Promise<InterviewListItem[]> {
       jobTitle: "Backend Sênior",
       interviewer: "Rafael Alves",
       place: "meet.google.com/xza-qwe",
+      date: "2026-07-10T14:30:00",
       month: "JUL",
       day: "10",
       hour: "14:30",
@@ -38,6 +41,7 @@ export async function getMockInterviews(): Promise<InterviewListItem[]> {
       jobTitle: "Product Designer",
       interviewer: "Juliana Mendes",
       place: "Sala 3 · Escritório SP",
+      date: "2026-07-11T10:00:00",
       month: "JUL",
       day: "11",
       hour: "10:00",
@@ -49,6 +53,7 @@ export async function getMockInterviews(): Promise<InterviewListItem[]> {
       jobTitle: "Customer Success",
       interviewer: "Rafael Alves",
       place: "meet.google.com/abc-rty",
+      date: "2026-07-12T16:00:00",
       month: "JUL",
       day: "12",
       hour: "16:00",
@@ -60,10 +65,35 @@ export async function getMockInterviews(): Promise<InterviewListItem[]> {
       jobTitle: "Backend Sênior",
       interviewer: "Juliana Mendes",
       place: "—",
+      date: "2026-07-09T09:30:00",
       month: "JUL",
       day: "09",
       hour: "09:30",
       status: "CANCELLED",
+    },
+    {
+      id: "mock-iv-5",
+      candidateName: "Camila Souza",
+      jobTitle: "Product Designer",
+      interviewer: "Juliana Mendes",
+      place: "meet.google.com/dsg-poi",
+      date: "2026-07-10T09:00:00",
+      month: "JUL",
+      day: "10",
+      hour: "09:00",
+      status: "SCHEDULED",
+    },
+    {
+      id: "mock-iv-6",
+      candidateName: "Bruno Carvalho",
+      jobTitle: "Backend Sênior",
+      interviewer: "Rafael Alves",
+      place: "Sala 1 · Escritório SP",
+      date: "2026-07-10T17:00:00",
+      month: "JUL",
+      day: "10",
+      hour: "17:00",
+      status: "SCHEDULED",
     },
   ];
 }

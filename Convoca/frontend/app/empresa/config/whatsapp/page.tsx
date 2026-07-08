@@ -13,7 +13,7 @@ export default async function WhatsAppConfigPage() {
   return (
     <>
       <TopNav active="config" user={session.user} />
-      <div className="mx-auto flex max-w-[1080px] items-start gap-7.5 px-8 pb-14 pt-7">
+      <div className="flex w-full items-start gap-7.5 px-8 pb-14 pt-7">
         <ConfigNav active="/empresa/config/whatsapp" />
         <section className="min-w-0 flex-1">
           <div className="mb-1 text-[13px] font-semibold text-text-muted">
@@ -23,14 +23,16 @@ export default async function WhatsAppConfigPage() {
             WhatsApp Institucional
           </h1>
 
-          <WhatsAppPanel
-            initialStatus={status.status}
-            initialPhone={status.connectedPhoneNumber}
-            user={session.user}
-          />
+          <div className="mx-auto max-w-[640px]">
+            <WhatsAppPanel
+              initialStatus={status.status}
+              initialPhone={status.connectedPhoneNumber}
+              user={session.user}
+            />
+          </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl border border-border bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+          <div className="mx-auto grid max-w-[860px] grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_4px_16px_rgba(15,23,42,0.08)]">
               <h3 className="mb-2 text-sm font-bold">Sobre esta conexão</h3>
               <p className="text-[13px] leading-relaxed text-text-secondary">
                 Este número é usado pelo <strong className="text-ai-accent">agente de IA</strong>{" "}
@@ -38,7 +40,7 @@ export default async function WhatsAppConfigPage() {
                 não é o WhatsApp pessoal de um recrutador.
               </p>
             </div>
-            <div className="rounded-2xl border border-border bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_4px_16px_rgba(15,23,42,0.08)]">
               <h3 className="mb-2 text-sm font-bold">Canal de fallback</h3>
               <p className="text-[13px] leading-relaxed text-text-secondary">
                 Se o WhatsApp falhar para um candidato (sem número ou sessão caiu), o sistema

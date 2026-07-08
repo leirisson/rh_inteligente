@@ -10,7 +10,7 @@ export default async function VagasPage() {
 
   return (
     <CompanyPage active="vagas">
-      <div className="mx-auto max-w-[1200px] px-10 pb-14 pt-8">
+      <div className="w-full px-10 pb-14 pt-8">
         <div className="mb-6 flex items-start justify-between">
           <div>
             <h1 className="mb-1 text-[26px] font-extrabold tracking-tight">Vagas</h1>
@@ -20,20 +20,20 @@ export default async function VagasPage() {
           </div>
           <Link
             href="/empresa/vagas/nova"
-            className="flex h-11 items-center rounded-full bg-primary px-5 text-sm font-bold text-white shadow-[0_4px_12px_rgba(79,70,229,0.28)]"
+            className="flex h-11 items-center rounded-full bg-primary px-5 text-sm font-bold text-white shadow-[0_4px_12px_rgba(79,70,229,0.28)] transition-colors hover:bg-primary-hover"
           >
             + Nova Vaga
           </Link>
         </div>
 
         <div className="mb-7 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <div className="rounded-2xl border border-border bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_4px_16px_rgba(15,23,42,0.08)]">
             <div className="text-[30px] font-extrabold tracking-tight">{activeCount}</div>
             <div className="mt-1 text-[12.5px] font-medium text-text-secondary">
               Vagas ativas
             </div>
           </div>
-          <div className="rounded-2xl border border-border bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_4px_16px_rgba(15,23,42,0.08)]">
             <div className="text-[30px] font-extrabold tracking-tight">{total}</div>
             <div className="mt-1 text-[12.5px] font-medium text-text-secondary">
               Total de vagas
@@ -42,23 +42,23 @@ export default async function VagasPage() {
         </div>
 
         {jobs.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border bg-white p-12 text-center">
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center shadow-[0_4px_16px_rgba(15,23,42,0.06)]">
             <p className="mb-4 text-sm text-text-secondary">Nenhuma vaga cadastrada ainda.</p>
             <Link
               href="/empresa/vagas/nova"
-              className="inline-flex h-11 items-center rounded-full bg-primary px-5 text-sm font-bold text-white"
+              className="inline-flex h-11 items-center rounded-full bg-primary px-5 text-sm font-bold text-white transition-colors hover:bg-primary-hover"
             >
               Criar a primeira vaga
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4.5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {jobs.map((job) => {
               const style = getJobStatusStyle(job.status);
               return (
                 <div
                   key={job.id}
-                  className="flex flex-col rounded-2xl border border-border bg-white p-5.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+                  className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5.5 shadow-[0_4px_16px_rgba(15,23,42,0.08)] transition-shadow hover:shadow-[0_8px_24px_rgba(15,23,42,0.12)]"
                 >
                   <div className="mb-3.5 flex items-center justify-between">
                     <Badge {...style} />
@@ -76,13 +76,13 @@ export default async function VagasPage() {
                   <div className="mt-auto flex items-center justify-between border-t border-slate-100 pt-4">
                     <Link
                       href={`/empresa/vagas/${job.id}`}
-                      className="text-[13px] font-semibold text-text-secondary"
+                      className="text-[13px] font-semibold text-text-secondary transition-colors hover:text-text"
                     >
                       Editar
                     </Link>
                     <Link
                       href={`/empresa/vagas/${job.id}/funil`}
-                      className="text-[13px] font-bold text-primary"
+                      className="text-[13px] font-bold text-primary transition-colors hover:text-primary-hover"
                     >
                       Ver funil →
                     </Link>

@@ -19,7 +19,7 @@ export default async function ConfigEquipePage() {
   return (
     <>
       <TopNav active="config" user={session.user} />
-      <div className="mx-auto flex max-w-[1080px] items-start gap-7.5 px-8 pb-14 pt-7">
+      <div className="flex w-full items-start gap-7.5 px-8 pb-14 pt-7">
         <ConfigNav active="/empresa/config/equipe" />
         <section className="min-w-0 flex-1">
           <div className="mb-4.5 flex items-center justify-between">
@@ -33,7 +33,7 @@ export default async function ConfigEquipePage() {
           </div>
           <MockDataBanner note="listagem/convite de usuários" />
 
-          <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_16px_rgba(15,23,42,0.08)]">
             <div className="grid grid-cols-[2fr_1.4fr_1.3fr_1fr] bg-surface px-5 py-3.5 text-[11.5px] font-bold uppercase tracking-wide text-text-muted">
               <span>Nome</span>
               <span>Papel</span>

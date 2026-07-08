@@ -4,6 +4,18 @@ import { useMemo, useState } from "react";
 import { Badge } from "@/app/_lib/design-system/Badge";
 import { getInterviewStatusStyle } from "@/app/_lib/design-system/status-map";
 import type { InterviewListItem } from "@/app/_lib/mock/interviews-list";
+import type { InterviewStatus } from "@/app/_lib/api/types";
+
+/**
+ * Cores sólidas (não os tons pastéis de status-map, pensados para badges em fundo
+ * branco) — os chips do calendário são pequenos e precisam de texto branco sobre
+ * fundo saturado para permanecer legíveis nesse contexto.
+ */
+const CHIP_SOLID_BG: Record<InterviewStatus, string> = {
+  SCHEDULED: "#059669",
+  RESCHEDULED: "#D97706",
+  CANCELLED: "#94A3B8",
+};
 
 const WEEKDAY_LABELS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 const MONTH_LABELS = [
@@ -103,7 +115,7 @@ export function InterviewsCalendarView({ interviews }: Props) {
   return (
     <div className="grid w-full grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
       {/* Grade do calendário — lado esquerdo */}
-      <div className="rounded-2xl border border-border bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_4px_16px_rgba(15,23,42,0.08)]">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-[15.5px] font-extrabold tracking-tight">
             {MONTH_LABELS[cursor.month]} {cursor.year}
@@ -112,21 +124,21 @@ export function InterviewsCalendarView({ interviews }: Props) {
             <button
               onClick={() => goToMonth(-1)}
               aria-label="Mês anterior"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-text-secondary hover:bg-slate-100"
+              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-slate-100"
             >
               ‹
             </button>
             <button
               onClick={() => goToMonth(1)}
               aria-label="Próximo mês"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-text-secondary hover:bg-slate-100"
+              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-slate-100"
             >
               ›
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-7 gap-1.5">
+        <div className="grid grid-cols-7 gap-2">
           {WEEKDAY_LABELS.map((label) => (
             <div
               key={label}
@@ -150,10 +162,12 @@ export function InterviewsCalendarView({ interviews }: Props) {
                 key={key}
                 onClick={() => setSelectedKey(dayInterviews.length > 0 ? key : null)}
                 disabled={dayInterviews.length === 0}
-                className={`flex min-h-[84px] flex-col items-stretch rounded-xl border p-1.5 text-left transition-colors ${
+                className={`flex min-h-[92px] flex-col items-stretch rounded-xl border p-1.5 text-left transition-colors ${
                   isSelected
-                    ? "border-primary bg-primary/5"
-                    : "border-transparent hover:border-border hover:bg-slate-50"
+                    ? "border-primary bg-[#EEF2FF] shadow-[0_2px_8px_rgba(79,70,229,0.18)]"
+                    : dayInterviews.length > 0
+                      ? "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-slate-100"
+                      : "border-transparent hover:bg-slate-50"
                 } ${dayInterviews.length === 0 ? "cursor-default" : "cursor-pointer"}`}
               >
                 <span
@@ -168,21 +182,18 @@ export function InterviewsCalendarView({ interviews }: Props) {
                   {date.getDate()}
                 </span>
 
-                <div className="flex flex-1 flex-col gap-0.5 overflow-hidden">
-                  {visible.map((iv) => {
-                    const style = getInterviewStatusStyle(iv.status);
-                    return (
-                      <span
-                        key={iv.id}
-                        className="truncate rounded-md px-1 py-0.5 text-[10px] font-semibold leading-tight"
-                        style={{ backgroundColor: style.bg, color: style.color }}
-                      >
-                        {iv.hour} {iv.candidateName}
-                      </span>
-                    );
-                  })}
+                <div className="flex flex-1 flex-col gap-1 overflow-hidden">
+                  {visible.map((iv) => (
+                    <span
+                      key={iv.id}
+                      className="truncate rounded-md px-1.5 py-1 text-[10.5px] font-bold leading-tight text-white shadow-sm"
+                      style={{ backgroundColor: CHIP_SOLID_BG[iv.status] }}
+                    >
+                      {iv.hour} · {iv.candidateName}
+                    </span>
+                  ))}
                   {overflow > 0 && (
-                    <span className="px-1 text-[10px] font-bold text-text-muted">
+                    <span className="px-1 text-[10.5px] font-bold text-text-secondary">
                       +{overflow} mais
                     </span>
                   )}
@@ -194,10 +205,21 @@ export function InterviewsCalendarView({ interviews }: Props) {
       </div>
 
       {/* Lista do dia selecionado — lado direito */}
-      <div className="rounded-2xl border border-border bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_4px_16px_rgba(15,23,42,0.08)]">
         {!selectedKey && (
           <div className="flex h-full min-h-[220px] flex-col items-center justify-center text-center">
-            <span className="mb-2 text-2xl">🗓️</span>
+            <svg
+              className="mb-3 h-9 w-9 text-text-muted"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.6}
+              aria-hidden="true"
+            >
+              <rect x="3" y="4.5" width="18" height="16" rx="2.5" />
+              <path d="M3 9.5h18" strokeLinecap="round" />
+              <path d="M8 3v3M16 3v3" strokeLinecap="round" />
+            </svg>
             <p className="text-[13px] font-semibold text-text-secondary">
               Selecione um dia com entrevista
             </p>
@@ -219,7 +241,7 @@ export function InterviewsCalendarView({ interviews }: Props) {
                 return (
                   <div
                     key={iv.id}
-                    className="rounded-xl border border-border bg-slate-50/60 p-3.5"
+                    className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.05)]"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
@@ -227,7 +249,7 @@ export function InterviewsCalendarView({ interviews }: Props) {
                           {iv.hour}
                         </div>
                         <div
-                          className={`mt-0.5 text-[14.5px] font-bold tracking-tight ${strike ? "line-through" : ""}`}
+                          className={`mt-0.5 text-[14.5px] font-bold tracking-tight ${strike ? "text-text-muted line-through" : "text-text"}`}
                         >
                           {iv.candidateName}
                         </div>

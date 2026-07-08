@@ -28,6 +28,7 @@ import {
   deleteContactMethod,
   listCandidateApplications,
 } from "./candidate.service.js";
+import { candidateResumeRoutes } from "../candidate-resume/candidate-resume.routes.js";
 
 export function candidateRoutes(app: FastifyInstance): void {
   app.post(
@@ -36,8 +37,8 @@ export function candidateRoutes(app: FastifyInstance): void {
       schema: { body: signupCandidateBodySchema, response: { 201: candidateAuthResponseSchema } },
     },
     async (request, reply) => {
-      const { name, email, password, resumeText } = request.body as SignupCandidateBody;
-      const result = await signupCandidate(app, name, email, password, resumeText);
+      const { name, email, password } = request.body as SignupCandidateBody;
+      const result = await signupCandidate(app, name, email, password);
       return reply.status(201).send(result);
     },
   );
@@ -57,10 +58,14 @@ export function candidateRoutes(app: FastifyInstance): void {
     protectedApp.addHook("onRequest", protectedApp.authenticate);
     protectedApp.addHook("preHandler", requireCandidate);
 
-    protectedApp.get("/me", { schema: { response: { 200: candidateResponseSchema } } }, async (request) => {
-      const candidateId = (request.user as { candidate_id: string }).candidate_id;
-      return getCandidate(candidateId);
-    });
+    protectedApp.get(
+      "/me",
+      { schema: { response: { 200: candidateResponseSchema } } },
+      async (request) => {
+        const candidateId = (request.user as { candidate_id: string }).candidate_id;
+        return getCandidate(candidateId);
+      },
+    );
 
     protectedApp.patch(
       "/me",
@@ -116,5 +121,7 @@ export function candidateRoutes(app: FastifyInstance): void {
         return listCandidateApplications(candidateId);
       },
     );
+
+    candidateResumeRoutes(protectedApp);
   });
 }

@@ -38,6 +38,7 @@ afterAll(async () => {
   await prisma.jobRequirement.deleteMany();
   await prisma.job.deleteMany();
   await prisma.contactMethod.deleteMany();
+  await prisma.skill.deleteMany();
   await prisma.candidate.deleteMany();
   await prisma.user.deleteMany();
   await prisma.tenant.deleteMany();
@@ -55,6 +56,7 @@ beforeEach(async () => {
   await prisma.jobRequirement.deleteMany();
   await prisma.job.deleteMany();
   await prisma.contactMethod.deleteMany();
+  await prisma.skill.deleteMany();
   await prisma.candidate.deleteMany();
   await prisma.user.deleteMany();
   await prisma.tenant.deleteMany();
@@ -83,7 +85,6 @@ async function signupCandidate(suffix: string) {
       name: `Candidate ${suffix}`,
       email: `candidate${suffix}@test.com`,
       password: "CandidatePass@123",
-      resumeText: "matching resume",
     },
   });
   const candidate = res.json<{ accessToken: string; candidate: { id: string } }>();
@@ -93,6 +94,14 @@ async function signupCandidate(suffix: string) {
     url: "/candidates/me/contact-methods",
     headers: makeAuthHeader(candidate.accessToken),
     payload: { channel: "EMAIL", value: `candidate${suffix}@test.com` },
+  });
+
+  // Triggers resumeText/embedding generation, same effect the removed resumeText signup field had.
+  await app.inject({
+    method: "POST",
+    url: "/candidates/me/skills",
+    headers: makeAuthHeader(candidate.accessToken),
+    payload: { name: "matching resume" },
   });
 
   return candidate;

@@ -16,6 +16,10 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await prisma.contactMethod.deleteMany();
+  await prisma.workExperience.deleteMany();
+  await prisma.education.deleteMany();
+  await prisma.skill.deleteMany();
+  await prisma.candidateLanguage.deleteMany();
   await prisma.candidate.deleteMany();
   await prisma.user.deleteMany();
   await prisma.tenant.deleteMany();
@@ -25,6 +29,10 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await prisma.contactMethod.deleteMany();
+  await prisma.workExperience.deleteMany();
+  await prisma.education.deleteMany();
+  await prisma.skill.deleteMany();
+  await prisma.candidateLanguage.deleteMany();
   await prisma.candidate.deleteMany();
   await prisma.user.deleteMany();
   await prisma.tenant.deleteMany();

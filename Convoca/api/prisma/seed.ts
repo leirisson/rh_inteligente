@@ -1,4 +1,11 @@
-import { PrismaClient, UserRole, JobStatus, Channel, ApplicationStatus } from "@prisma/client";
+import {
+  PrismaClient,
+  UserRole,
+  JobStatus,
+  Channel,
+  ApplicationStatus,
+  LanguageProficiency,
+} from "@prisma/client";
 import argon2 from "argon2";
 
 const prisma = new PrismaClient();
@@ -90,13 +97,73 @@ async function main() {
       name: "João Silva",
       email: "joao.silva@email.com",
       passwordHash: candidateHash,
-      resumeText: "Desenvolvedor backend com 4 anos de experiência em Node.js, TypeScript e PostgreSQL.",
       contactMethods: {
         create: [
           { channel: Channel.EMAIL, value: "joao.silva@email.com" },
           { channel: Channel.WHATSAPP, value: "+5511999999999" },
         ],
       },
+      workExperiences: {
+        create: [
+          {
+            company: "Tech Solutions Ltda.",
+            role: "Desenvolvedor Backend Pleno",
+            description: "APIs REST em Node.js/TypeScript, integrações de pagamento, PostgreSQL.",
+            startDate: new Date("2022-03-01"),
+            isCurrent: true,
+          },
+          {
+            company: "StartupXP",
+            role: "Desenvolvedor Backend Júnior",
+            description: "Manutenção de serviços Node.js e integração com filas.",
+            startDate: new Date("2020-01-01"),
+            endDate: new Date("2022-02-01"),
+            isCurrent: false,
+          },
+        ],
+      },
+      educations: {
+        create: [
+          {
+            institution: "Universidade Federal Demo",
+            course: "Ciência da Computação",
+            level: "Graduação",
+            startDate: new Date("2016-02-01"),
+            endDate: new Date("2019-12-01"),
+            isCurrent: false,
+          },
+        ],
+      },
+      skills: {
+        create: [
+          { name: "Node.js" },
+          { name: "TypeScript" },
+          { name: "PostgreSQL" },
+          { name: "Docker" },
+        ],
+      },
+      languages: {
+        create: [
+          { name: "Português", proficiency: LanguageProficiency.NATIVE },
+          { name: "Inglês", proficiency: LanguageProficiency.ADVANCED },
+        ],
+      },
+    },
+  });
+
+  // resumeText/embedding do candidato são derivados das seções estruturadas acima —
+  // mesmo texto que regenerateCandidateResumeText (candidate-resume.service.ts) geraria.
+  await prisma.candidate.update({
+    where: { id: candidate.id },
+    data: {
+      resumeText:
+        "Experiência:\n" +
+        "- Desenvolvedor Backend Pleno na Tech Solutions Ltda. (2022-03 a atual) — APIs REST em Node.js/TypeScript, integrações de pagamento, PostgreSQL.\n" +
+        "- Desenvolvedor Backend Júnior na StartupXP (2020-01 a 2022-02) — Manutenção de serviços Node.js e integração com filas.\n\n" +
+        "Formação:\n" +
+        "- Graduação em Ciência da Computação, Universidade Federal Demo (2016-02 a 2019-12)\n\n" +
+        "Habilidades: Node.js, TypeScript, PostgreSQL, Docker\n\n" +
+        "Idiomas: Português (NATIVE), Inglês (ADVANCED)",
     },
   });
 

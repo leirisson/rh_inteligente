@@ -15,6 +15,7 @@ export type MessageSender = "AGENT" | "CANDIDATE";
 export type Channel = "WHATSAPP" | "EMAIL";
 export type InterviewStatus = "SCHEDULED" | "RESCHEDULED" | "CANCELLED";
 export type IntegrationStatus = "DISCONNECTED" | "CONNECTING" | "CONNECTED" | "ERROR";
+export type LanguageProficiency = "BASIC" | "INTERMEDIATE" | "ADVANCED" | "FLUENT" | "NATIVE";
 
 export interface ApiErrorBody {
   error: { message: string; code: string };
@@ -147,6 +148,53 @@ export interface ContactMethod {
   channel: Channel;
   value: string;
   createdAt: string;
+}
+
+// ---- candidate resume sections ----
+export interface WorkExperience {
+  id: string;
+  candidateId: string;
+  company: string;
+  role: string;
+  description: string | null;
+  startDate: string;
+  endDate: string | null;
+  isCurrent: boolean;
+  createdAt: string;
+}
+
+export interface Education {
+  id: string;
+  candidateId: string;
+  institution: string;
+  course: string;
+  level: string;
+  startDate: string;
+  endDate: string | null;
+  isCurrent: boolean;
+  createdAt: string;
+}
+
+export interface Skill {
+  id: string;
+  candidateId: string;
+  name: string;
+  createdAt: string;
+}
+
+export interface CandidateLanguage {
+  id: string;
+  candidateId: string;
+  name: string;
+  proficiency: LanguageProficiency;
+  createdAt: string;
+}
+
+export interface CandidateResume {
+  workExperiences: WorkExperience[];
+  educations: Education[];
+  skills: Skill[];
+  languages: CandidateLanguage[];
 }
 
 // ---- interview ----

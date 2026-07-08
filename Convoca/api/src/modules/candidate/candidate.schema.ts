@@ -5,7 +5,6 @@ export const signupCandidateBodySchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
   password: z.string().min(8),
-  resumeText: z.string().optional(),
 });
 
 export const loginCandidateBodySchema = z.object({
@@ -30,7 +29,6 @@ export const candidateAuthResponseSchema = z.object({
 
 export const updateCandidateBodySchema = z.object({
   name: z.string().min(1).optional(),
-  resumeText: z.string().optional(),
 });
 
 export const createContactMethodBodySchema = z.object({

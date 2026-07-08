@@ -56,6 +56,14 @@ enum IntegrationStatus {
   ERROR
 }
 
+enum LanguageProficiency {
+  BASIC
+  INTERMEDIATE
+  ADVANCED
+  FLUENT
+  NATIVE
+}
+
 // ─── Tenant ──────────────────────────────────────────────────────────────────
 
 model Tenant {
@@ -103,8 +111,12 @@ model Candidate {
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
-  contactMethods ContactMethod[]
-  applications   Application[]
+  contactMethods   ContactMethod[]
+  applications     Application[]
+  workExperiences  WorkExperience[]
+  educations       Education[]
+  skills           Skill[]
+  languages        CandidateLanguage[]
 
   @@map("candidates")
 }
@@ -121,6 +133,71 @@ model ContactMethod {
   candidate Candidate @relation(fields: [candidateId], references: [id])
 
   @@map("contact_methods")
+}
+
+// ─── WorkExperience ───────────────────────────────────────────────────────────
+
+model WorkExperience {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidateId String    @map("candidate_id") @db.Uuid
+  company     String
+  role        String
+  description String?
+  startDate   DateTime  @map("start_date")
+  endDate     DateTime? @map("end_date")
+  isCurrent   Boolean   @default(false) @map("is_current")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  candidate Candidate @relation(fields: [candidateId], references: [id])
+
+  @@map("work_experiences")
+}
+
+// ─── Education ────────────────────────────────────────────────────────────────
+
+model Education {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidateId String    @map("candidate_id") @db.Uuid
+  institution String
+  course      String
+  level       String
+  startDate   DateTime  @map("start_date")
+  endDate     DateTime? @map("end_date")
+  isCurrent   Boolean   @default(false) @map("is_current")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  candidate Candidate @relation(fields: [candidateId], references: [id])
+
+  @@map("educations")
+}
+
+// ─── Skill ────────────────────────────────────────────────────────────────────
+
+model Skill {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidateId String   @map("candidate_id") @db.Uuid
+  name        String
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  candidate Candidate @relation(fields: [candidateId], references: [id])
+
+  @@unique([candidateId, name])
+  @@map("skills")
+}
+
+// ─── CandidateLanguage ────────────────────────────────────────────────────────
+
+model CandidateLanguage {
+  id          String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidateId String              @map("candidate_id") @db.Uuid
+  name        String
+  proficiency LanguageProficiency
+  createdAt   DateTime            @default(now()) @map("created_at")
+
+  candidate Candidate @relation(fields: [candidateId], references: [id])
+
+  @@unique([candidateId, name])
+  @@map("candidate_languages")
 }
 
 // ─── Job ──────────────────────────────────────────────────────────────────────
